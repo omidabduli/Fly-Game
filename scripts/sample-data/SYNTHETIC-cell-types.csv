@@ -1,0 +1,13 @@
+# SYNTHETIC SAMPLE DATA: made-up IDs and types for testing the preprocessing script. NOT FlyWire data.
+root_id,primary_type,additional_type(s)
+900001,LC4,
+900002,LC4,
+900003,LC4,
+900004,LPLC2,
+900005,LPLC2,
+900006,LPLC2,
+900007,DNp01,
+900008,T4,
+900009,T5,
+900010,Mi1,
+900011,TTMn,

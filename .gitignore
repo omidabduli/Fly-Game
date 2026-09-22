@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+coverage/
+.vite/
+benchmark-results.json
+scripts/sample-data/SYNTHETIC-circuit.json

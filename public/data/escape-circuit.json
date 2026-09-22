@@ -1,0 +1,25 @@
+{
+  "schema": "fly-escape-lab/circuit@1",
+  "source": "escape-circuit.json (hand-written)",
+  "provenance": "ILLUSTRATIVE ONLY: a hand-written sketch of the looming-escape pathway described in the literature. The groupings are conceptual and the weights are placeholders picked for the game, not FlyWire or other connectome data. Replace this file with the output of `npm run connectome:preprocess` to use real data.",
+  "nodes": [
+    { "id": "R1-6", "label": "R1–R6 photoreceptors", "module": "visual", "cellType": "R1-6" },
+    { "id": "L1L2", "label": "L1/L2 lamina neurons", "module": "visual", "cellType": "L1/L2" },
+    { "id": "T4T5", "label": "T4/T5 direction-selective cells", "module": "visual", "cellType": "T4/T5" },
+    { "id": "LC4", "label": "LC4 (looming velocity)", "module": "looming", "cellType": "LC4" },
+    { "id": "LPLC2", "label": "LPLC2 (looming size, radial-motion opponent)", "module": "looming", "cellType": "LPLC2" },
+    { "id": "GF", "label": "Giant Fiber (DNp01)", "module": "escape", "cellType": "DNp01" },
+    { "id": "TTMn", "label": "TTM motor neuron (jump)", "module": "motor", "cellType": "TTMn" },
+    { "id": "PSI", "label": "PSI interneuron → DLM (wing depressor)", "module": "motor", "cellType": "PSI" }
+  ],
+  "edges": [
+    { "from": "R1-6", "to": "L1L2", "weight": 1.0 },
+    { "from": "L1L2", "to": "T4T5", "weight": 1.0 },
+    { "from": "T4T5", "to": "LPLC2", "weight": 0.8 },
+    { "from": "T4T5", "to": "LC4", "weight": 0.6 },
+    { "from": "LC4", "to": "GF", "weight": 0.64 },
+    { "from": "LPLC2", "to": "GF", "weight": 0.36 },
+    { "from": "GF", "to": "TTMn", "weight": 1.0 },
+    { "from": "GF", "to": "PSI", "weight": 1.0 }
+  ]
+}

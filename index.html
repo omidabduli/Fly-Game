@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#1b1d22" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="description" content="A browser game where you try to swat a fruit fly. The fly sees the swatter coming and jumps away, based on how real fruit flies escape." />
+    <meta property="og:title" content="Fly Escape Lab" />
+    <meta property="og:description" content="Try to swat a fruit fly that sees you coming. Can you beat 200 million years of evolution?" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Fly Escape" />
+    <title>Fly Escape Lab</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+  </head>
+  <body>
+    <main id="app">
+      <canvas id="game" role="img" aria-label="Game area: a desk with a fruit fly on it. Move to aim the fly swatter, click or tap to swat."></canvas>
+      <noscript><p class="noscript">Fly Escape Lab needs JavaScript to run.</p></noscript>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

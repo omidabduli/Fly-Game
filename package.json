@@ -1,0 +1,25 @@
+{
+  "name": "fly-escape-lab",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Browser game: try to swat a fruit fly with a simulated escape reflex.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "benchmark": "tsx scripts/benchmark.ts",
+    "benchmark:quick": "tsx scripts/benchmark.ts --attacks 2000",
+    "connectome:preprocess": "tsx scripts/preprocess-connectome.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.1"
+  }
+}
