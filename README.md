@@ -10,18 +10,48 @@ its field of view, guesses where the swatter is going to be, and jumps out of th
 the time you'll miss, often by just a few millimetres.
 
 The fly model is loosely based on published research on *Drosophila* escape behaviour, but it's a
-game and not a biological simulation. The ~99% escape rate is something I tuned for, not a
+game and not a biological simulation. The ~99% escape rate (on Hard) is something I tuned for, not a
 measured number.
+
+## Game modes
+
+Pick one on the title screen (or in the menu, which brings in a new fly):
+
+| Mode | Fly | Synthetic attackers catch it |
+|---|---|---|
+| 🐌 Easy | Sleepy fly: slower reflexes, weaker jumps, lands close by | ~42% of serious attacks |
+| 🪰 Medium | Alert fly: quick, but makes mistakes | ~13% |
+| 🥷 Hard | Ninja fly: the full escape reflex, with adaptive difficulty | ~1.4% |
+
+It's the same fly brain in every mode. Easy and Medium only scale its reaction delays, looming
+thresholds, take-off strength and prediction noise ([`src/game/DifficultyModes.ts`](src/game/DifficultyModes.ts)).
+Only Hard uses the adaptive controller. Real players on a phone aim less precisely than the
+synthetic attackers, so expect lower rates.
+
+## The damage bill
+
+The swatter breaks whatever it lands on: the window, the monitor, the phone, the lamp, the plant,
+the coffee mug, the plate, the fruit, the books, the cookie crumbs and the framed print on the wall.
+Most things break in stages (cracked → smashed), each with a repair cost. The HUD shows the running
+total, and when you finally catch the fly you get an itemised bill instead of the survival time, with
+a rank from *Surgical* ($0) to *Demolition*. The room is repaired for every new fly.
+
+Breaking things is purely cosmetic for the simulation: the physics and the fly's behaviour don't
+change. It's tracked in [`src/game/DamageSystem.ts`](src/game/DamageSystem.ts) and drawn into the
+pre-rendered room by [`SceneRenderer`](src/render/SceneRenderer.ts).
 
 ## Controls
 
 - **Mouse:** move to aim, click to swat. Arrow keys / WASD and Space work too.
 - **Touch:** drag to aim, tap to swat. The swatter hits wherever you tap.
 - The dashed outline shows where the swatter will land.
+- On phones the game vibrates on hits and breaks (Android, and iPhone with iOS 18 or later).
+  It can be turned off in the menu.
 - Keys: `B` brain view, `L` lab mode, `R` replay the last close call, `M` mute,
   `D` debug overlay (or add `?debug` to the URL), `Esc` menu.
 
-On iPhone you can use "Add to Home Screen" in Safari to play it full screen.
+On iPhone you can use "Add to Home Screen" in Safari to play it full screen. All sounds are generated
+with the Web Audio API, so they follow the ring/silent switch: flip it off silent to hear them.
 
 ## Things to try
 
@@ -61,6 +91,8 @@ lists them with references.
 
 `npm run benchmark` runs 10,000 simulated attacks. The simulated attackers only use the controls a
 player has (move the aim point, press swat). Results with the current parameters:
+
+These numbers are for Hard (the unmodified fly).
 
 | | |
 |---|---|

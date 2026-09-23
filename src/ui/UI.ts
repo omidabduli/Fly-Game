@@ -16,9 +16,12 @@ export type ToastTone = 'hit' | 'extreme' | 'near' | 'close' | 'miss' | 'info' |
 export class UI {
   readonly root: HTMLElement;
   private readonly hud: HTMLElement;
-  private readonly hudTime: HTMLElement;
+  private readonly hudDamage: HTMLElement;
   private readonly hudAttempts: HTMLElement;
   private readonly hudBadge: HTMLElement;
+  private readonly hudDiff: HTMLElement;
+  private readonly hudFly: HTMLElement;
+  private receiptTimer = 0;
   private readonly toastEl: HTMLElement;
   private readonly achEl: HTMLElement;
   private readonly modal: HTMLElement;
@@ -37,8 +40,8 @@ export class UI {
       'beforeend',
       `
       <header class="hud" id="hud" hidden>
-        <div class="hud-stat"><span class="hud-label">Fly survival</span><span class="hud-value" id="hud-time">00:00</span></div>
-        <div class="hud-badge" id="hud-badge"></div>
+        <div class="hud-stat"><span class="hud-label">Damage</span><span class="hud-value hud-damage" id="hud-damage">$0</span></div>
+        <div class="hud-badge" id="hud-badge"><span class="diff-tag" id="hud-diff"></span><span class="hud-fly" id="hud-fly"></span></div>
         <div class="hud-stat right"><span class="hud-label">Attempts</span><span class="hud-value" id="hud-attempts">0</span></div>
         <nav class="hud-buttons" aria-label="Game controls">
           <button class="icon-btn" data-action="sound" id="btn-sound" aria-label="Mute sound">${ICONS.soundOn}</button>
@@ -60,9 +63,11 @@ export class UI {
     );
     const $ = (id: string) => root.querySelector<HTMLElement>(`#${id}`)!;
     this.hud = $('hud');
-    this.hudTime = $('hud-time');
+    this.hudDamage = $('hud-damage');
     this.hudAttempts = $('hud-attempts');
     this.hudBadge = $('hud-badge');
+    this.hudDiff = $('hud-diff');
+    this.hudFly = $('hud-fly');
     this.toastEl = $('toast');
     this.achEl = $('ach-toast');
     this.modal = $('modal');
@@ -99,14 +104,65 @@ export class UI {
     );
   }
 
-  setHud(survival: string, attempts: number, badge: string): void {
-    const key = `${survival}|${attempts}|${badge}`;
+  /** `mode` is the difficulty id (or 'lab'), shown as a coloured tag. */
+  setHud(damage: string, attempts: number, mode: string, modeLabel: string, fly: string): void {
+    const key = `${damage}|${attempts}|${mode}|${modeLabel}|${fly}`;
     if (key === this.lastHud) return;
     this.lastHud = key;
-    this.hudTime.textContent = survival;
+    this.hudDamage.textContent = damage;
     this.hudAttempts.textContent = String(attempts);
-    this.hudBadge.textContent = badge;
-    this.hudBadge.classList.toggle('lab', badge.startsWith('LAB'));
+    this.hudDiff.textContent = modeLabel;
+    this.hudDiff.className = `diff-tag diff-${mode}`;
+    this.hudFly.textContent = fly;
+    this.hudBadge.classList.toggle('lab', mode === 'lab');
+  }
+
+  /** Little "the bill went up" animation on the HUD damage counter. */
+  bumpDamage(): void {
+    const el = this.hudDamage;
+    el.classList.remove('bump');
+    void el.offsetWidth;
+    el.classList.add('bump');
+  }
+
+  /**
+   * Catch screen: count the damage total up, then slam the rank stamp on the
+   * receipt. `tick` runs for every counter step, `stamp` when the stamp lands.
+   */
+  animateReceipt(reducedMotion: boolean, tick: () => void, stamp: () => void): void {
+    clearTimeout(this.receiptTimer);
+    const totalEl = this.modalCard.querySelector<HTMLElement>('#receipt-total');
+    const stampEl = this.modalCard.querySelector<HTMLElement>('#receipt-stamp');
+    const receipt = this.modalCard.querySelector<HTMLElement>('.receipt');
+    if (!totalEl || !stampEl || !receipt) return;
+    const total = Number(totalEl.dataset.total) || 0;
+    const lines = receipt.querySelectorAll('.receipt-lines li').length;
+    const fmt = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
+    if (reducedMotion) {
+      totalEl.textContent = fmt(total);
+      stampEl.classList.add('show');
+      return;
+    }
+    // wait for the receipt lines to slide in, then count up
+    const start = 350 + lines * 130;
+    const steps = total > 0 ? Math.min(24, Math.max(6, Math.round(Math.sqrt(total) * 1.4))) : 0;
+    let i = 0;
+    const step = () => {
+      if (!this.modalCard.contains(totalEl)) return;
+      i++;
+      const u = steps ? i / steps : 1;
+      totalEl.textContent = fmt(total * (1 - (1 - u) ** 2));
+      if (steps) tick();
+      if (i < steps) this.receiptTimer = window.setTimeout(step, 45);
+      else
+        this.receiptTimer = window.setTimeout(() => {
+          if (!this.modalCard.contains(stampEl)) return;
+          totalEl.classList.add('done');
+          stampEl.classList.add('show');
+          stamp();
+        }, 220);
+    };
+    this.receiptTimer = window.setTimeout(step, start);
   }
 
   setToggle(id: 'brain' | 'lab', on: boolean): void {
@@ -130,6 +186,15 @@ export class UI {
     this.titleLayer.hidden = false;
   }
 
+  /** Highlight the chosen card in any visible difficulty picker. */
+  selectDifficulty(id: string): void {
+    this.root.querySelectorAll<HTMLElement>('.diff-card').forEach((b) => {
+      const on = b.dataset.diff === id;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-checked', String(on));
+    });
+  }
+
   hideTitle(): void {
     this.titleLayer.hidden = true;
     this.titleLayer.innerHTML = '';
@@ -150,6 +215,7 @@ export class UI {
   }
 
   closeModal(): void {
+    clearTimeout(this.receiptTimer);
     this.modal.hidden = true;
     this.modalCard.innerHTML = '';
     this.modalName = null;

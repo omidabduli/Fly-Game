@@ -26,6 +26,14 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'slow-mo', title: 'Slow-Mo Scientist', description: 'Watch a slow-motion replay.', icon: '🎞️', test: (s) => s.replaysWatched >= 1 },
   { id: 'neuro-nerd', title: 'Neuro Nerd', description: 'Open the Brain View.', icon: '🧠', test: (s) => s.brainViewOpened >= 1 },
   { id: 'streak-100', title: 'Unswattable', description: 'A single fly survives 100 serious attacks in a row.', icon: '🛡️', test: (s) => s.longestStreak >= 100 },
+  { id: 'easy-catch', title: 'Sleepy Fly', description: 'Catch a fly on Easy.', icon: '🐌', test: (s) => s.easyCatches >= 1 },
+  { id: 'medium-catch', title: 'Fair Fight', description: 'Catch a fly on Medium.', icon: '⚔️', test: (s) => s.mediumCatches >= 1 },
+  { id: 'hard-catch', title: 'Ninja Slayer', description: 'Catch a fly on Hard.', icon: '🥷', test: (s) => s.hardCatches >= 1 },
+  { id: 'clean-kill', title: 'Surgical Strike', description: 'Catch a fly without breaking anything.', icon: '✨', test: (s) => s.cleanKills >= 1 },
+  { id: 'wrecker', title: 'Bull in a China Shop', description: 'Cause $1,000 of damage chasing one fly.', icon: '🐂', test: (s) => s.maxRoundDamage >= 1000 },
+  { id: 'window', title: 'Fresh Air', description: 'Shatter the window.', icon: '🪟', test: (s) => s.windowsSmashed >= 1 },
+  { id: 'bsod', title: 'Blue Screen', description: 'Destroy the monitor.', icon: '🖥️', test: (s) => s.monitorsSmashed >= 1 },
+  { id: 'lights-out', title: 'Lights Out', description: 'Smash the lamp bulb.', icon: '💡', test: (s) => s.lampsBroken >= 1 },
 ];
 
 /** Locally stored achievements (structured so an online sync could be added). */

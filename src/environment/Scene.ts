@@ -60,6 +60,9 @@ export interface SurfaceObject extends SurfaceDef {
 export const WORLD_W = 480;
 export const WORLD_H = 300;
 
+/** Framed print hanging flat on the wall (decoration only, not a surface). */
+export const POSTER_RECT = { x: 412, y: 10, w: 48, h: 36 };
+
 /** The single polished environment: a desk against a wall, next to a window. */
 export function buildDeskLayout(): SurfaceDef[] {
   return [
@@ -98,6 +101,9 @@ export function buildDeskLayout(): SurfaceDef[] {
     // --- books ---
     { id: 'book-bottom', label: 'books', material: 'paper', shape: rect(384, 250, 84, 32, 2), top: 180, landable: true, attract: 0.3 },
     { id: 'book-top', label: 'books', material: 'paper', shape: rect(392, 228, 70, 23, 2), top: 184, landable: true, attract: 0.3 },
+
+    // --- phone lying on the desk ---
+    { id: 'phone', label: 'phone', material: 'screen', shape: rect(224, 226, 36, 68, 5), top: 158, landable: true, attract: 0.45, bright: true },
 
     // --- plate with fruit (fruit flies!) ---
     { id: 'plate', label: 'plate', material: 'ceramic', shape: ellipse(78, 262, 62, 18), top: 156, landable: true, attract: 0.5 },

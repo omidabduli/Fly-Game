@@ -34,7 +34,8 @@ describe('heightfield & swatter contact', () => {
   const scene = new Scene();
 
   it('heights follow the scene layout (max rule)', () => {
-    expect(scene.heightAt(240, 280)).toBe(150); // desk
+    expect(scene.heightAt(345, 285)).toBe(150); // desk
+    expect(scene.heightAt(240, 280)).toBe(158); // phone lying on the desk
     expect(scene.heightAt(175, 220)).toBe(225); // cup body
     expect(scene.heightAt(60, 60)).toBe(0); // window glass
     expect(scene.heightAt(300, 100)).toBe(110); // monitor

@@ -1,4 +1,6 @@
 import type { AttackResult } from '../game/AttackTracker';
+import type { DamageEvent } from '../game/DamageSystem';
+import type { DifficultyId } from '../game/DifficultyModes';
 import { loadJSON, saveJSON } from './storage';
 
 export interface PlayerStats {
@@ -30,6 +32,20 @@ export interface PlayerStats {
   labExperiments: number;
   replaysWatched: number;
   brainViewOpened: number;
+  easyCatches: number;
+  mediumCatches: number;
+  hardCatches: number;
+  /** catches without breaking anything */
+  cleanKills: number;
+  /** dollars of damage, all time */
+  totalDamage: number;
+  /** most damage caused while chasing a single fly */
+  maxRoundDamage: number;
+  /** things damaged or broken, all time */
+  itemsBroken: number;
+  windowsSmashed: number;
+  monitorsSmashed: number;
+  lampsBroken: number;
   firstPlayed: string | null;
   lastPlayed: string | null;
 }
@@ -61,6 +77,16 @@ export function emptyStats(): PlayerStats {
     labExperiments: 0,
     replaysWatched: 0,
     brainViewOpened: 0,
+    easyCatches: 0,
+    mediumCatches: 0,
+    hardCatches: 0,
+    cleanKills: 0,
+    totalDamage: 0,
+    maxRoundDamage: 0,
+    itemsBroken: 0,
+    windowsSmashed: 0,
+    monitorsSmashed: 0,
+    lampsBroken: 0,
     firstPlayed: null,
     lastPlayed: null,
   };
@@ -128,6 +154,30 @@ export class StatsManager {
       s.reactionCount++;
       if (s.bestReactionMs === null || r.playerReactionMs < s.bestReactionMs) s.bestReactionMs = r.playerReactionMs;
     }
+    this.touch();
+  }
+
+  /** Something broke; `roundTotal` is the damage caused while chasing the current fly. */
+  recordDamage(e: DamageEvent, roundTotal: number): void {
+    const s = this.stats;
+    s.totalDamage += e.cost;
+    s.itemsBroken++;
+    s.maxRoundDamage = Math.max(s.maxRoundDamage, roundTotal);
+    if (e.final) {
+      if (e.id === 'window') s.windowsSmashed++;
+      if (e.id === 'monitor') s.monitorsSmashed++;
+      if (e.id === 'lamp') s.lampsBroken++;
+    }
+    this.touch();
+  }
+
+  /** A fly was caught on `difficulty` after causing `roundDamage` dollars of damage. */
+  recordCatch(difficulty: DifficultyId, roundDamage: number): void {
+    const s = this.stats;
+    if (difficulty === 'easy') s.easyCatches++;
+    else if (difficulty === 'medium') s.mediumCatches++;
+    else s.hardCatches++;
+    if (roundDamage <= 0) s.cleanKills++;
     this.touch();
   }
 

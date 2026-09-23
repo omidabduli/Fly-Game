@@ -1,7 +1,9 @@
-import type { Scene, SurfaceObject } from '../environment/Scene';
+import { POSTER_RECT, type Scene, type SurfaceObject } from '../environment/Scene';
+import type { BreakableId, DamageMark, DamageSystem } from '../game/DamageSystem';
 import { Rng } from '../math/rng';
 import type { Shape } from '../physics/geometry';
 import type { Camera } from './Camera';
+import { crackStar, deadLines, jaggedPoly, polyPath, screenBleed, shards, splatter } from './DamagePainter';
 
 /** Light comes from the window (upper-left): shadows fall down-right. */
 export const LIGHT_DX = 0.1;
@@ -37,12 +39,36 @@ export class SceneRenderer {
   private canvas: HTMLCanvasElement | OffscreenCanvas | null = null;
   private k = 1; // buffer px per mm
   private readonly margin: number;
+  /** damage version that is currently painted into the buffer */
+  private paintedVersion = -1;
 
   constructor(
     private readonly scene: Scene,
+    private readonly damage: DamageSystem | null = null,
     margin = 40,
   ) {
     this.margin = margin;
+  }
+
+  private stage(id: BreakableId): number {
+    return this.damage ? this.damage.stage(id) : 0;
+  }
+
+  private marks(id: BreakableId): DamageMark[] {
+    return this.damage ? this.damage.state[id].marks : [];
+  }
+
+  /** Repaints the buffer if something broke since the last paint (no reallocation). */
+  refresh(): void {
+    if (!this.canvas || !this.damage || this.damage.version === this.paintedVersion) return;
+    const ctx = this.canvas.getContext('2d') as Ctx | null;
+    if (!ctx) return;
+    const M = this.margin;
+    const k = this.k;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    ctx.setTransform(k, 0, 0, k, M * k, M * k);
+    this.paint(ctx);
   }
 
   /**
@@ -105,6 +131,8 @@ export class SceneRenderer {
     const H = S.height;
     const deskY = 190;
     const rng = new Rng(7);
+    this.paintedVersion = this.damage ? this.damage.version : -1;
+    const lampOn = this.stage('lamp') < 2;
 
     // --- wall -------------------------------------------------------------------
     const wall = ctx.createLinearGradient(0, -M, W, deskY);
@@ -120,11 +148,13 @@ export class SceneRenderer {
     ctx.fillStyle = spill;
     ctx.fillRect(-M, -M, W + 2 * M, deskY + M);
     // lamp glow on the wall
-    const glow = ctx.createRadialGradient(420, 140, 5, 420, 140, 150);
-    glow.addColorStop(0, 'rgba(255,214,140,0.45)');
-    glow.addColorStop(1, 'rgba(255,214,140,0)');
-    ctx.fillStyle = glow;
-    ctx.fillRect(250, 40, W + M - 250, deskY - 40);
+    if (lampOn) {
+      const glow = ctx.createRadialGradient(420, 140, 5, 420, 140, 150);
+      glow.addColorStop(0, 'rgba(255,214,140,0.45)');
+      glow.addColorStop(1, 'rgba(255,214,140,0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(250, 40, W + M - 250, deskY - 40);
+    }
     // plaster texture
     for (let i = 0; i < 2600; i++) {
       const x = rng.range(-M, W + M);
@@ -178,11 +208,13 @@ export class SceneRenderer {
     ctx.fillStyle = edge;
     ctx.fillRect(-M, deskY - 3, W + 2 * M, 9);
     // lamp light pool on the desk
-    const pool = ctx.createRadialGradient(410, 200, 10, 410, 215, 140);
-    pool.addColorStop(0, 'rgba(255,215,150,0.28)');
-    pool.addColorStop(1, 'rgba(255,215,150,0)');
-    ctx.fillStyle = pool;
-    ctx.fillRect(250, deskY, W + M - 250, H - deskY);
+    if (lampOn) {
+      const pool = ctx.createRadialGradient(410, 200, 10, 410, 215, 140);
+      pool.addColorStop(0, 'rgba(255,215,150,0.28)');
+      pool.addColorStop(1, 'rgba(255,215,150,0)');
+      ctx.fillStyle = pool;
+      ctx.fillRect(250, deskY, W + M - 250, H - deskY);
+    }
     // front edge + apron
     ctx.fillStyle = '#7a4c2a';
     ctx.fillRect(-M, H, W + 2 * M, M);
@@ -195,10 +227,11 @@ export class SceneRenderer {
     this.contactShadow(ctx, 298, 205, 48, 8, 0.28);
     this.monitorBase(ctx);
     this.crumbs(ctx);
+    this.phone(ctx);
     this.contactShadow(ctx, 440, 218, 30, 6, 0.3);
     this.books(ctx);
     this.plate(ctx);
-    this.lamp(ctx);
+    this.lamp(ctx, lampOn);
     this.contactShadow(ctx, 180, 248, 36, 6, 0.32);
     this.cup(ctx);
     this.plant(ctx);
@@ -242,10 +275,15 @@ export class SceneRenderer {
 
   private poster(ctx: Ctx): void {
     // A small framed anatomy print on the wall (flat decoration).
-    const x = 412;
-    const y = 10;
-    const w = 48;
-    const h = 36;
+    const { x, y, w, h } = POSTER_RECT;
+    const stage = this.stage('poster');
+    ctx.save();
+    if (stage >= 2) {
+      // knocked crooked: it hangs from the nail at the top centre
+      ctx.translate(x + w / 2, y);
+      ctx.rotate(0.13);
+      ctx.translate(-(x + w / 2), -y + 1.5);
+    }
     ctx.save();
     ctx.shadowColor = 'rgba(40,25,10,0.18)';
     ctx.shadowBlur = 2 * this.k;
@@ -281,21 +319,34 @@ export class SceneRenderer {
     ctx.textAlign = 'center';
     ctx.fillText('Drosophila melanogaster', 0, 12);
     ctx.restore();
+    if (stage >= 1) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x + 2.5, y + 2.5, w - 5, h - 5);
+      ctx.clip();
+      for (const m of this.marks('poster')) {
+        crackStar(ctx, m.x, m.y, 14 + 6 * m.stage, m.seed, { color: 'rgba(255,255,255,0.9)', shadow: 'rgba(60,50,40,0.35)', width: 0.3, rings: 1 });
+      }
+      ctx.restore();
+    }
+    ctx.restore();
+    if (stage >= 2) {
+      // the nail it used to hang straight from
+      ctx.fillStyle = '#6b5a48';
+      ctx.beginPath();
+      ctx.arc(x + w / 2, y - 0.5, 0.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
-  private window(ctx: Ctx): void {
-    const glass = this.obj('window-glass').shape as Extract<Shape, { kind: 'rect' }>;
-    // sky
+  /** The view outside: sky, clouds, trees and roofs (no glass reflections). */
+  private outdoor(ctx: Ctx, glass: Extract<Shape, { kind: 'rect' }>): void {
     const sky = ctx.createLinearGradient(0, glass.y, 0, glass.y + glass.h);
     sky.addColorStop(0, '#7fb8e8');
     sky.addColorStop(0.7, '#bfe0f6');
     sky.addColorStop(1, '#dcefe9');
     ctx.fillStyle = sky;
     ctx.fillRect(glass.x, glass.y, glass.w, glass.h);
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(glass.x, glass.y, glass.w, glass.h);
-    ctx.clip();
     // clouds
     const cloud = (cx: number, cy: number, s: number) => {
       ctx.fillStyle = 'rgba(255,255,255,0.85)';
@@ -326,6 +377,15 @@ export class SceneRenderer {
     ctx.lineTo(glass.x + 26, glass.y + glass.h - 34);
     ctx.lineTo(glass.x + 36, glass.y + glass.h - 26);
     ctx.fill();
+  }
+
+  private window(ctx: Ctx): void {
+    const glass = this.obj('window-glass').shape as Extract<Shape, { kind: 'rect' }>;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(glass.x, glass.y, glass.w, glass.h);
+    ctx.clip();
+    this.outdoor(ctx, glass);
     // reflections
     ctx.fillStyle = 'rgba(255,255,255,0.18)';
     ctx.beginPath();
@@ -340,6 +400,7 @@ export class SceneRenderer {
     ctx.lineTo(glass.x + 76, glass.y + glass.h);
     ctx.lineTo(glass.x + 70, glass.y + glass.h);
     ctx.fill();
+    this.windowDamage(ctx, glass);
     ctx.restore();
     // frame pieces
     for (const id of ['window-frame-top', 'window-frame-bottom', 'window-frame-left', 'window-frame-right', 'window-mullion-v', 'window-mullion-h']) {
@@ -367,6 +428,64 @@ export class SceneRenderer {
     ctx.strokeStyle = 'rgba(110,100,85,0.35)';
     ctx.lineWidth = 0.4;
     ctx.stroke();
+    // broken glass lying on the sill
+    if (this.stage('window') >= 3) {
+      for (const m of this.marks('window')) {
+        shards(ctx, Math.min(170, Math.max(30, m.x)), sill.y + 5, 16, 3.5, m.seed + 5, 22, 'rgba(225,240,255,0.85)', 'rgba(90,120,150,0.6)', 2.2);
+      }
+    }
+  }
+
+  /** Cracks in the glass; the last stage knocks holes into the panes (drawn inside the glass clip). */
+  private windowDamage(ctx: Ctx, glass: Extract<Shape, { kind: 'rect' }>): void {
+    const stage = this.stage('window');
+    if (!stage) return;
+    const marks = this.marks('window');
+    if (stage >= 3) {
+      // the pane (between frame bars) each hit landed in gets a jagged hole
+      const mv = this.obj('window-mullion-v').shape as Extract<Shape, { kind: 'rect' }>;
+      const mh = this.obj('window-mullion-h').shape as Extract<Shape, { kind: 'rect' }>;
+      const done = new Set<string>();
+      for (const m of marks) {
+        const left = m.x < mv.x + mv.w / 2;
+        const top = m.y < mh.y + mh.h / 2;
+        const key = `${left}${top}`;
+        if (done.has(key)) continue;
+        done.add(key);
+        const px0 = left ? glass.x : mv.x + mv.w;
+        const px1 = left ? mv.x : glass.x + glass.w;
+        const py0 = top ? glass.y : mh.y + mh.h;
+        const py1 = top ? mh.y : glass.y + glass.h;
+        const cx = Math.min(px1 - 10, Math.max(px0 + 10, m.x));
+        const cy = Math.min(py1 - 10, Math.max(py0 + 10, m.y));
+        const hole = jaggedPoly(m.seed + 11, cx, cy, Math.min(px1 - px0, py1 - py0) * 0.62, 16, 0.4, 1.15, 0.95);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(px0, py0, px1 - px0, py1 - py0);
+        ctx.clip();
+        // the glass that's left is slightly hazy, so the hole looks clear next to it
+        ctx.fillStyle = 'rgba(235,245,255,0.28)';
+        ctx.fillRect(px0, py0, px1 - px0, py1 - py0);
+        polyPath(ctx, hole);
+        ctx.save();
+        ctx.clip();
+        this.outdoor(ctx, glass); // no glass = no reflections
+        ctx.restore();
+        polyPath(ctx, hole);
+        ctx.strokeStyle = 'rgba(40,60,80,0.35)';
+        ctx.lineWidth = 0.9;
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(240,250,255,0.95)';
+        ctx.lineWidth = 0.45;
+        ctx.stroke();
+        // cracks from the hole to the frame
+        crackStar(ctx, cx, cy, Math.max(px1 - px0, py1 - py0) * 0.75, m.seed + 3, { color: 'rgba(255,255,255,0.85)', shadow: 'rgba(40,60,80,0.3)', width: 0.35 });
+        ctx.restore();
+      }
+    }
+    for (const m of marks) {
+      crackStar(ctx, m.x, m.y, 16 + 9 * m.stage, m.seed, { color: 'rgba(255,255,255,0.88)', shadow: 'rgba(40,60,80,0.3)', width: 0.35, rings: m.stage });
+    }
   }
 
   private monitor(ctx: Ctx): void {
@@ -394,6 +513,54 @@ export class SceneRenderer {
     ctx.save();
     shapePath(ctx, scr as Shape);
     ctx.clip();
+    const stage = this.stage('monitor');
+    if (stage >= 2) this.blueScreen(ctx, scr);
+    else this.editor(ctx, scr);
+    for (const m of this.marks('monitor')) {
+      screenBleed(ctx, m.x, m.y, 10 + 8 * m.stage, m.seed);
+      deadLines(ctx, scr.x, scr.y, scr.w, scr.h, m.x, m.seed + 1, 2 + 3 * m.stage);
+      crackStar(ctx, m.x, m.y, 22 + 14 * m.stage, m.seed + 2, { color: 'rgba(235,240,255,0.8)', shadow: 'rgba(0,0,0,0.6)', width: 0.35, rings: 1 + m.stage });
+    }
+    // glare
+    const gl = ctx.createLinearGradient(scr.x, scr.y, scr.x + scr.w, scr.y + scr.h);
+    gl.addColorStop(0, 'rgba(255,255,255,0.1)');
+    gl.addColorStop(0.35, 'rgba(255,255,255,0.02)');
+    gl.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = gl;
+    ctx.fillRect(scr.x, scr.y, scr.w, scr.h);
+    ctx.restore();
+    // brand dot
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.beginPath();
+    ctx.arc(298, 156, 1.1, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /** The monitor gave up. */
+  private blueScreen(ctx: Ctx, scr: Extract<Shape, { kind: 'rect' }>): void {
+    ctx.fillStyle = '#1668c4';
+    ctx.fillRect(scr.x, scr.y, scr.w, scr.h);
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    ctx.font = '600 22px ui-sans-serif, system-ui, sans-serif';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(':(', scr.x + 16, scr.y + 38);
+    ctx.font = '600 5.2px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillText('Your desk ran into a problem.', scr.x + 16, scr.y + 52);
+    ctx.font = '4px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillText('FLY_NOT_FOUND · SWATTER_OVERLOAD', scr.x + 16, scr.y + 61);
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    for (let i = 0; i < 3; i++) ctx.fillRect(scr.x + 16, scr.y + 68 + i * 5, 70 - i * 14, 1.6);
+    // QR code
+    const rng = new Rng(99);
+    const qx = scr.x + 16;
+    const qy = scr.y + 86;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(qx - 1, qy - 1, 17, 17);
+    ctx.fillStyle = '#1668c4';
+    for (let i = 0; i < 7; i++) for (let j = 0; j < 7; j++) if (rng.chance(0.5)) ctx.fillRect(qx + i * 2.2, qy + j * 2.2, 2.2, 2.2);
+  }
+
+  private editor(ctx: Ctx, scr: Extract<Shape, { kind: 'rect' }>): void {
     ctx.fillStyle = '#161a26';
     ctx.fillRect(scr.x, scr.y, scr.w, scr.h);
     // editor chrome
@@ -443,19 +610,6 @@ export class SceneRenderer {
     // cursor
     ctx.fillStyle = '#e6e6e6';
     ctx.fillRect(scr.x + 92, scr.y + 57, 0.8, 3);
-    // glare
-    const gl = ctx.createLinearGradient(scr.x, scr.y, scr.x + scr.w, scr.y + scr.h);
-    gl.addColorStop(0, 'rgba(255,255,255,0.1)');
-    gl.addColorStop(0.35, 'rgba(255,255,255,0.02)');
-    gl.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = gl;
-    ctx.fillRect(scr.x, scr.y, scr.w, scr.h);
-    ctx.restore();
-    // brand dot
-    ctx.fillStyle = 'rgba(255,255,255,0.25)';
-    ctx.beginPath();
-    ctx.arc(298, 156, 1.1, 0, Math.PI * 2);
-    ctx.fill();
   }
 
   private monitorBase(ctx: Ctx): void {
@@ -475,7 +629,7 @@ export class SceneRenderer {
     ctx.fill();
   }
 
-  private lamp(ctx: Ctx): void {
+  private lamp(ctx: Ctx, lampOn: boolean): void {
     const base = this.obj('lamp-base').shape as Extract<Shape, { kind: 'ellipse' }>;
     const bg = ctx.createLinearGradient(0, base.cy - base.ry, 0, base.cy + base.ry);
     bg.addColorStop(0, '#4a5a62');
@@ -499,12 +653,17 @@ export class SceneRenderer {
       ctx.fill();
     }
     // bulb glow under the shade
-    const glow = ctx.createRadialGradient(422, 106, 2, 422, 110, 60);
-    glow.addColorStop(0, 'rgba(255,236,190,0.9)');
-    glow.addColorStop(0.25, 'rgba(255,214,140,0.35)');
-    glow.addColorStop(1, 'rgba(255,214,140,0)');
-    ctx.fillStyle = glow;
-    ctx.fillRect(360, 95, 130, 90);
+    if (lampOn) {
+      const glow = ctx.createRadialGradient(422, 106, 2, 422, 110, 60);
+      glow.addColorStop(0, 'rgba(255,236,190,0.9)');
+      glow.addColorStop(0.25, 'rgba(255,214,140,0.35)');
+      glow.addColorStop(1, 'rgba(255,214,140,0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(360, 95, 130, 90);
+    } else {
+      // bits of the bulb on the desk below
+      shards(ctx, 424, 204, 18, 5, 404, 14, 'rgba(240,240,230,0.9)', 'rgba(120,110,90,0.6)', 1.4);
+    }
     // shade
     const shade = this.obj('lamp-shade');
     shapePath(ctx, shade.shape);
@@ -517,11 +676,37 @@ export class SceneRenderer {
     ctx.strokeStyle = 'rgba(0,0,0,0.25)';
     ctx.lineWidth = 0.5;
     ctx.stroke();
+    // dents where the swatter hit
+    ctx.save();
+    shapePath(ctx, shade.shape);
+    ctx.clip();
+    for (const m of this.marks('lamp')) {
+      const g = ctx.createRadialGradient(m.x - 2, m.y - 2, 0, m.x, m.y, 11);
+      g.addColorStop(0, 'rgba(0,0,0,0.42)');
+      g.addColorStop(0.6, 'rgba(0,0,0,0.18)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(m.x, m.y, 12, 8, 0.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(190,255,245,0.35)';
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.ellipse(m.x + 1.5, m.y + 1.5, 9, 5.5, 0.4, Math.PI * 0.1, Math.PI * 0.8);
+      ctx.stroke();
+    }
+    ctx.restore();
     // rim + opening
-    ctx.fillStyle = '#fff3d6';
+    ctx.fillStyle = lampOn ? '#fff3d6' : '#4a4639';
     ctx.beginPath();
     ctx.ellipse(422, 104, 38, 3.2, 0, 0, Math.PI * 2);
     ctx.fill();
+    if (!lampOn) {
+      // broken bulb stub
+      ctx.fillStyle = 'rgba(210,205,190,0.9)';
+      polyPath(ctx, jaggedPoly(77, 422, 104, 5, 10, 0.5, 1, 0.5));
+      ctx.fill();
+    }
     ctx.fillStyle = 'rgba(255,255,255,0.22)';
     ctx.beginPath();
     ctx.moveTo(404, 60);
@@ -534,16 +719,80 @@ export class SceneRenderer {
   private crumbs(ctx: Ctx): void {
     const c = this.obj('crumbs').shape as Extract<Shape, { kind: 'ellipse' }>;
     const rng = new Rng(31);
-    for (let i = 0; i < 26; i++) {
+    // squashed crumbs get spread all over the desk
+    const spread = this.stage('crumbs') ? 2.6 : 1;
+    const n = this.stage('crumbs') ? 70 : 26;
+    for (let i = 0; i < n; i++) {
       const a = rng.range(0, Math.PI * 2);
       const r = Math.sqrt(rng.next());
-      const x = c.cx + Math.cos(a) * c.rx * r;
-      const y = c.cy + Math.sin(a) * c.ry * r;
+      const x = c.cx + Math.cos(a) * c.rx * r * spread;
+      const y = c.cy + Math.sin(a) * c.ry * r * spread;
       ctx.fillStyle = rng.chance(0.5) ? '#d9a55c' : '#b77a38';
       ctx.beginPath();
       ctx.ellipse(x, y, rng.range(0.4, 1.3), rng.range(0.3, 0.9), rng.range(0, 3), 0, Math.PI * 2);
       ctx.fill();
     }
+  }
+
+  private phone(ctx: Ctx): void {
+    const p = this.obj('phone').shape as Extract<Shape, { kind: 'rect' }>;
+    this.contactShadow(ctx, p.x + p.w / 2 + 2, p.y + p.h / 2 + 3, p.w * 0.75, p.h * 0.55, 0.3);
+    // body
+    shapePath(ctx, p as Shape);
+    ctx.fillStyle = '#23262d';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(200,210,225,0.45)';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+    // screen
+    const s = { x: p.x + 1.6, y: p.y + 1.6, w: p.w - 3.2, h: p.h - 3.2 };
+    const stage = this.stage('phone');
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(s.x, s.y, s.w, s.h, 4);
+    ctx.clip();
+    if (stage >= 2) {
+      ctx.fillStyle = '#050608';
+      ctx.fillRect(s.x, s.y, s.w, s.h);
+    } else {
+      const g = ctx.createLinearGradient(s.x, s.y, s.x + s.w, s.y + s.h);
+      g.addColorStop(0, '#3a2a6e');
+      g.addColorStop(0.55, '#b0457a');
+      g.addColorStop(1, '#f39a4c');
+      ctx.fillStyle = g;
+      ctx.fillRect(s.x, s.y, s.w, s.h);
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      ctx.font = '700 8.5px ui-rounded, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('9:41', s.x + s.w / 2, s.y + 19);
+      ctx.font = '600 2.6px system-ui, sans-serif';
+      ctx.fillText('Tuesday, 23 September', s.x + s.w / 2, s.y + 10.5);
+      ctx.textAlign = 'left';
+      // lock-screen buttons
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.beginPath();
+      ctx.arc(s.x + 6, s.y + s.h - 7, 2.6, 0, Math.PI * 2);
+      ctx.arc(s.x + s.w - 6, s.y + s.h - 7, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(s.x + s.w / 2 - 6, s.y + s.h - 2.2, 12, 0.7);
+    }
+    for (const m of this.marks('phone')) {
+      if (stage >= 2) deadLines(ctx, s.x, s.y, s.w, s.h, m.x, m.seed + 1, 6);
+      crackStar(ctx, m.x, m.y, 14 + 10 * m.stage, m.seed, { color: 'rgba(240,245,255,0.85)', shadow: 'rgba(0,0,0,0.55)', width: 0.3, rings: 2 });
+    }
+    // glass sheen
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y);
+    ctx.lineTo(s.x + s.w * 0.6, s.y);
+    ctx.lineTo(s.x, s.y + s.h * 0.45);
+    ctx.fill();
+    ctx.restore();
+    // camera island
+    ctx.fillStyle = '#0b0c0f';
+    ctx.beginPath();
+    ctx.roundRect(p.x + p.w / 2 - 5, p.y + 3, 10, 2.6, 1.3);
+    ctx.fill();
   }
 
   private books(ctx: Ctx): void {
@@ -574,12 +823,50 @@ export class SceneRenderer {
       shapePath(ctx, r as Shape);
       ctx.stroke();
     };
+    const stage = this.stage('books');
+    // torn-out pages lying on the desk (under the books)
+    if (stage >= 2) this.loosePages(ctx, b1.x - 6, b1.y + b1.h - 2, 5, 404);
     book(b1, '#2f5d7c', '#d8b25c');
     book(b2, '#8e3b33', '#e9dcc0');
     ctx.fillStyle = 'rgba(255,245,225,0.8)';
     ctx.font = 'bold 3.2px Georgia, serif';
     ctx.fillText('NEURO', b1.x + 14, b1.y + b1.h * 0.72);
     ctx.fillText('FLIGHT', b2.x + 12, b2.y + b2.h * 0.8);
+    if (stage >= 1) {
+      // bent covers: crease lines and pages sticking out
+      for (const m of this.marks('books')) {
+        const rng = new Rng(m.seed);
+        ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+        ctx.lineWidth = 0.45;
+        ctx.beginPath();
+        ctx.moveTo(m.x - rng.range(8, 14), m.y - rng.range(-6, 6));
+        ctx.lineTo(m.x + rng.range(-2, 2), m.y + rng.range(-2, 2));
+        ctx.lineTo(m.x + rng.range(8, 14), m.y + rng.range(-6, 6));
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+        ctx.stroke();
+      }
+      this.loosePages(ctx, b2.x + b2.w - 4, b2.y + 6, 2, 17, true);
+    }
+  }
+
+  /** Paper sheets with a few lines of text on them. */
+  private loosePages(ctx: Ctx, x: number, y: number, n: number, seed: number, stickingOut = false): void {
+    const rng = new Rng(seed);
+    for (let i = 0; i < n; i++) {
+      ctx.save();
+      ctx.translate(x + (stickingOut ? rng.range(0, 3) : rng.range(-30, 60)), y + (stickingOut ? i * 5 : rng.range(0, 14)));
+      ctx.rotate(stickingOut ? rng.range(-0.35, 0.1) : rng.range(-0.6, 0.6));
+      const w = stickingOut ? 10 : 15;
+      const h = stickingOut ? 6 : 11;
+      ctx.fillStyle = 'rgba(0,0,0,0.12)';
+      ctx.fillRect(0.6, 0.8, w, h);
+      ctx.fillStyle = '#f6f1e4';
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = 'rgba(80,70,60,0.4)';
+      for (let l = 1.6; l < h - 1; l += 1.5) ctx.fillRect(1.2, l, w * rng.range(0.5, 0.85), 0.35);
+      ctx.restore();
+    }
   }
 
   private plate(ctx: Ctx): void {
@@ -588,37 +875,88 @@ export class SceneRenderer {
     const g = ctx.createLinearGradient(0, p.cy - p.ry, 0, p.cy + p.ry);
     g.addColorStop(0, '#ffffff');
     g.addColorStop(1, '#d9d4ca');
-    ctx.fillStyle = g;
-    shapePath(ctx, p as Shape);
-    ctx.fill();
-    ctx.fillStyle = '#f1ede4';
-    ctx.beginPath();
-    ctx.ellipse(p.cx, p.cy + 1, p.rx * 0.72, p.ry * 0.62, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(150,140,125,0.35)';
-    ctx.lineWidth = 0.4;
-    ctx.stroke();
+    const drawPlate = () => {
+      ctx.fillStyle = g;
+      shapePath(ctx, p as Shape);
+      ctx.fill();
+      ctx.fillStyle = '#f1ede4';
+      ctx.beginPath();
+      ctx.ellipse(p.cx, p.cy + 1, p.rx * 0.72, p.ry * 0.62, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(150,140,125,0.35)';
+      ctx.lineWidth = 0.4;
+      ctx.stroke();
+    };
+    const plateStage = this.stage('plate');
+    const plateMarks = this.marks('plate');
+    if (plateStage >= 2) {
+      // smashed: wedges pushed apart a little
+      const rng = new Rng(plateMarks[plateMarks.length - 1]?.seed ?? 3);
+      const cuts: number[] = [];
+      let a0 = rng.range(0, Math.PI * 2);
+      for (let i = 0; i < 6; i++) cuts.push((a0 += rng.range(0.7, 1.35)));
+      for (let i = 0; i < cuts.length; i++) {
+        const s0 = cuts[i];
+        const s1 = i + 1 < cuts.length ? cuts[i + 1] : cuts[0] + Math.PI * 2;
+        const mid = (s0 + s1) / 2;
+        const off = rng.range(1, 2.4);
+        ctx.save();
+        ctx.translate(Math.cos(mid) * off, Math.sin(mid) * off * 0.5);
+        ctx.beginPath();
+        ctx.moveTo(p.cx, p.cy);
+        ctx.lineTo(p.cx + Math.cos(s0) * p.rx * 1.5, p.cy + Math.sin(s0) * p.ry * 1.5);
+        ctx.lineTo(p.cx + Math.cos(mid) * p.rx * 1.6, p.cy + Math.sin(mid) * p.ry * 1.6);
+        ctx.lineTo(p.cx + Math.cos(s1) * p.rx * 1.5, p.cy + Math.sin(s1) * p.ry * 1.5);
+        ctx.closePath();
+        ctx.clip();
+        drawPlate();
+        ctx.restore();
+      }
+      shards(ctx, p.cx, p.cy + p.ry + 3, p.rx, 4, 55, 12, '#f4f0e8', 'rgba(120,110,95,0.6)', 2);
+    } else {
+      drawPlate();
+      for (const m of plateMarks) {
+        ctx.save();
+        shapePath(ctx, p as Shape);
+        ctx.clip();
+        crackStar(ctx, m.x, m.y, 16, m.seed, { color: 'rgba(110,95,80,0.75)', width: 0.3 });
+        ctx.restore();
+      }
+    }
+    const squashed = (id: string) => this.marks('fruit').filter((m) => m.objectId === id);
     // apple slice
     const a = this.obj('fruit-apple').shape as Extract<Shape, { kind: 'ellipse' }>;
-    this.contactShadow(ctx, a.cx + 2, a.cy + 4, a.rx, a.ry * 0.7, 0.25);
-    ctx.fillStyle = '#b8322a';
-    shapePath(ctx, a as Shape);
-    ctx.fill();
-    ctx.fillStyle = '#f3e4b8';
-    ctx.beginPath();
-    ctx.ellipse(a.cx, a.cy - 1.2, a.rx * 0.93, a.ry * 0.78, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(200,160,90,0.4)';
-    ctx.beginPath();
-    ctx.ellipse(a.cx + 1, a.cy - 1, a.rx * 0.35, a.ry * 0.28, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#4a2a18';
-    ctx.beginPath();
-    ctx.ellipse(a.cx - 1.5, a.cy - 1.5, 1, 1.6, 0.4, 0, Math.PI * 2);
-    ctx.ellipse(a.cx + 3, a.cy - 0.8, 1, 1.6, -0.4, 0, Math.PI * 2);
-    ctx.fill();
+    const appleHits = squashed('fruit-apple');
+    if (appleHits.length) {
+      for (const m of appleHits) splatter(ctx, a.cx, a.cy, 16 + 8 * m.stage, m.seed, 'rgba(236,214,150,0.85)', 16, 0.45);
+      this.squashedFruit(ctx, a, appleHits[0].seed, '#b8322a', '#f3e4b8');
+    } else {
+      this.contactShadow(ctx, a.cx + 2, a.cy + 4, a.rx, a.ry * 0.7, 0.25);
+      ctx.fillStyle = '#b8322a';
+      shapePath(ctx, a as Shape);
+      ctx.fill();
+      ctx.fillStyle = '#f3e4b8';
+      ctx.beginPath();
+      ctx.ellipse(a.cx, a.cy - 1.2, a.rx * 0.93, a.ry * 0.78, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(200,160,90,0.4)';
+      ctx.beginPath();
+      ctx.ellipse(a.cx + 1, a.cy - 1, a.rx * 0.35, a.ry * 0.28, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#4a2a18';
+      ctx.beginPath();
+      ctx.ellipse(a.cx - 1.5, a.cy - 1.5, 1, 1.6, 0.4, 0, Math.PI * 2);
+      ctx.ellipse(a.cx + 3, a.cy - 0.8, 1, 1.6, -0.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
     // banana piece
     const b = this.obj('fruit-banana').shape as Extract<Shape, { kind: 'ellipse' }>;
+    const bananaHits = squashed('fruit-banana');
+    if (bananaHits.length) {
+      for (const m of bananaHits) splatter(ctx, b.cx, b.cy, 14 + 8 * m.stage, m.seed, 'rgba(250,236,160,0.9)', 16, 0.45);
+      this.squashedFruit(ctx, b, bananaHits[0].seed, '#d9b84a', '#fbeea0');
+      return;
+    }
     this.contactShadow(ctx, b.cx + 2, b.cy + 3, b.rx, b.ry * 0.7, 0.22);
     const bg = ctx.createLinearGradient(0, b.cy - b.ry, 0, b.cy + b.ry);
     bg.addColorStop(0, '#fbeea0');
@@ -634,11 +972,39 @@ export class SceneRenderer {
     }
   }
 
+  /** A flattened, burst piece of fruit. */
+  private squashedFruit(ctx: Ctx, e: Extract<Shape, { kind: 'ellipse' }>, seed: number, skin: string, flesh: string): void {
+    const outer = jaggedPoly(seed + 7, e.cx, e.cy, e.rx * 1.2, 18, 0.25, 1, (e.ry / e.rx) * 1.05);
+    polyPath(ctx, outer);
+    ctx.fillStyle = skin;
+    ctx.fill();
+    polyPath(ctx, jaggedPoly(seed + 8, e.cx, e.cy - 0.5, e.rx * 1.05, 18, 0.3, 1, (e.ry / e.rx) * 0.9));
+    ctx.fillStyle = flesh;
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    polyPath(ctx, jaggedPoly(seed + 9, e.cx - e.rx * 0.2, e.cy - 1, e.rx * 0.4, 10, 0.4, 1, 0.4));
+    ctx.fill();
+  }
+
   private cup(ctx: Ctx): void {
     const body = this.obj('cup-body').shape as Extract<Shape, { kind: 'rect' }>;
     const handle = this.obj('cup-handle').shape as Extract<Shape, { kind: 'rect' }>;
     const rim = this.obj('cup-rim').shape as Extract<Shape, { kind: 'ellipse' }>;
     const coffee = this.obj('coffee').shape as Extract<Shape, { kind: 'ellipse' }>;
+    const stage = this.stage('cup');
+    const marks = this.marks('cup');
+    const seed = marks[0]?.seed ?? 1;
+    if (stage >= 1) {
+      // coffee splashed on the wall behind and a puddle on the desk
+      splatter(ctx, rim.cx, rim.cy - 4, 46, seed, 'rgba(92,52,24,0.78)', 34, 0.8, false);
+      polyPath(ctx, jaggedPoly(seed + 1, body.x + body.w / 2 + 8, body.y + body.h + 4, stage >= 3 ? 46 : 32, 20, 0.22, 1, 0.22));
+      ctx.fillStyle = 'rgba(70,38,16,0.82)';
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,230,200,0.18)';
+      ctx.beginPath();
+      ctx.ellipse(body.x + body.w / 2 - 4, body.y + body.h + 2.5, 12, 1.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
     // handle (ring)
     ctx.strokeStyle = '#3564a8';
     ctx.lineWidth = 6;
@@ -667,6 +1033,26 @@ export class SceneRenderer {
     ctx.textAlign = 'left';
     ctx.fillStyle = 'rgba(255,255,255,0.14)';
     ctx.fillRect(body.x + 9, body.y + 8, 4, body.h - 16);
+    if (stage >= 1) {
+      // drips running down the outside
+      const rng = new Rng(seed + 2);
+      ctx.fillStyle = 'rgba(80,44,18,0.85)';
+      for (let i = 0; i < 5; i++) {
+        const x = body.x + 4 + rng.range(0, body.w - 8);
+        const len = rng.range(6, 26);
+        ctx.beginPath();
+        ctx.roundRect(x, body.y, rng.range(1, 2.2), len, 1);
+        ctx.arc(x + 0.8, body.y + len, 1.3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    if (stage >= 2) {
+      ctx.save();
+      shapePath(ctx, body as Shape);
+      ctx.clip();
+      for (const m of marks) if (m.stage >= 2) crackStar(ctx, Math.min(body.x + body.w - 6, Math.max(body.x + 6, m.x)), Math.max(body.y + 8, m.y + 12), 30, m.seed, { color: 'rgba(250,250,255,0.85)', shadow: 'rgba(10,20,40,0.5)', width: 0.4 });
+      ctx.restore();
+    }
     // rim & coffee
     ctx.fillStyle = '#f1ece2';
     shapePath(ctx, rim as Shape);
@@ -675,15 +1061,43 @@ export class SceneRenderer {
     ctx.lineWidth = 0.4;
     ctx.stroke();
     const cg = ctx.createRadialGradient(coffee.cx - 6, coffee.cy - 1, 1, coffee.cx, coffee.cy, coffee.rx);
-    cg.addColorStop(0, '#6b4028');
-    cg.addColorStop(1, '#2f1a0f');
+    cg.addColorStop(0, stage >= 3 ? '#3a2a22' : '#6b4028');
+    cg.addColorStop(1, stage >= 3 ? '#1a120d' : '#2f1a0f');
     ctx.fillStyle = cg;
     shapePath(ctx, coffee as Shape);
     ctx.fill();
-    ctx.fillStyle = 'rgba(255,240,220,0.25)';
-    ctx.beginPath();
-    ctx.ellipse(coffee.cx - 7, coffee.cy - 1.3, 5, 1, 0, 0, Math.PI * 2);
-    ctx.fill();
+    if (stage < 3) {
+      ctx.fillStyle = 'rgba(255,240,220,0.25)';
+      ctx.beginPath();
+      ctx.ellipse(coffee.cx - 7, coffee.cy - 1.3, 5, 1, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (stage >= 3) {
+      // a big chunk broken out of the rim, pieces on the desk
+      const m = marks[marks.length - 1];
+      const nx = Math.min(body.x + body.w - 14, Math.max(body.x + 14, m.x));
+      const rng = new Rng(m.seed);
+      const notch: [number, number][] = [[nx - 14, rim.cy + 1]];
+      for (let i = 1; i < 9; i++) notch.push([nx - 14 + i * 3.5 + rng.range(-1, 1), rim.cy + 3 + rng.range(4, 9) * Math.sin((i / 9) * Math.PI) + rng.range(0, 5)]);
+      notch.push([nx + 17, rim.cy + 1]);
+      // the gap shows the coffee-stained inside wall of the mug
+      polyPath(ctx, notch);
+      const ig = ctx.createLinearGradient(0, rim.cy, 0, rim.cy + 18);
+      ig.addColorStop(0, '#b39a80');
+      ig.addColorStop(0.45, '#7a563a');
+      ig.addColorStop(1, '#3e2716');
+      ctx.fillStyle = ig;
+      ctx.fill();
+      // broken edge: white ceramic showing through the glaze
+      ctx.strokeStyle = '#fbf8f2';
+      ctx.lineWidth = 1.1;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(notch[0][0], notch[0][1]);
+      for (let i = 1; i < notch.length; i++) ctx.lineTo(notch[i][0], notch[i][1]);
+      ctx.stroke();
+      shards(ctx, body.x + body.w / 2 + 6, body.y + body.h + 6, 30, 4, m.seed + 4, 14, '#3c70bd', 'rgba(240,240,255,0.7)', 2.6);
+    }
   }
 
   private plant(ctx: Ctx): void {
@@ -700,17 +1114,63 @@ export class SceneRenderer {
     ctx.fillRect(pot.x, pot.y, pot.w, 4);
     ctx.fillStyle = '#4a3222';
     ctx.fillRect(pot.x + 2, pot.y + 1, pot.w - 4, 2);
+    const stage = this.stage('plant');
+    const marks = this.marks('plant');
+    if (stage >= 2) {
+      ctx.save();
+      shapePath(ctx, pot as Shape);
+      ctx.clip();
+      for (const m of marks) {
+        if (m.stage < 2) continue;
+        crackStar(ctx, Math.min(pot.x + pot.w - 5, Math.max(pot.x + 5, m.x)), Math.min(pot.y + pot.h - 6, Math.max(pot.y + 6, m.y)), 22, m.seed, { color: 'rgba(70,25,10,0.8)', shadow: 'rgba(255,200,170,0.25)', width: 0.45 });
+      }
+      ctx.restore();
+    }
+    if (stage >= 3) {
+      // chunk broken out of the pot, soil and shards on the sill
+      const seed = marks[marks.length - 1].seed;
+      polyPath(ctx, jaggedPoly(seed + 3, pot.x + pot.w / 2 + 3, pot.y + pot.h + 1, 26, 18, 0.3, 1, 0.26));
+      ctx.fillStyle = '#4a3222';
+      ctx.fill();
+      shards(ctx, pot.x + pot.w / 2, pot.y + pot.h + 5, 26, 3, seed + 4, 12, '#c9643a', 'rgba(80,30,10,0.6)', 2.4);
+      // a chunk broken out of the rim: soil inside, raw terracotta along the break
+      const nx = pot.x + pot.w * 0.6;
+      const nr = new Rng(seed + 5);
+      const notch: [number, number][] = [[nx - 10, pot.y]];
+      for (let i = 1; i < 7; i++) notch.push([nx - 10 + i * 3 + nr.range(-0.8, 0.8), pot.y + 3 + 8 * Math.sin((i / 7) * Math.PI) + nr.range(-1.5, 2)]);
+      notch.push([nx + 11, pot.y]);
+      polyPath(ctx, notch);
+      ctx.fillStyle = '#4a3222';
+      ctx.fill();
+      ctx.strokeStyle = '#e8946a';
+      ctx.lineWidth = 1;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(notch[0][0], notch[0][1]);
+      for (let i = 1; i < notch.length; i++) ctx.lineTo(notch[i][0], notch[i][1]);
+      ctx.stroke();
+    }
     // leaves (drawn inside the leaves ellipse)
     const rng = new Rng(5);
-    const greens = ['#3f7d3c', '#4f9a47', '#62b155', '#3a6e36'];
+    const greens = stage >= 3 ? ['#5d7a3a', '#6f8a45', '#7d9448', '#566f36'] : ['#3f7d3c', '#4f9a47', '#62b155', '#3a6e36'];
+    if (stage >= 3) {
+      // the plant slumps to one side
+      ctx.save();
+      ctx.translate(leaves.cx, pot.y);
+      ctx.rotate(0.28);
+      ctx.translate(-leaves.cx, -pot.y + 2);
+    }
     for (let i = 0; i < 14; i++) {
       const a = rng.range(-Math.PI, 0.25);
       const len = rng.range(10, 17);
       const cx = leaves.cx + Math.cos(a) * (leaves.rx - len * 0.55);
       const cy = leaves.cy + Math.sin(a) * (leaves.ry - len * 0.35) + 3;
+      const tilt = rng.range(-0.3, 0.3);
+      // knocked-off leaves are missing
+      if (stage >= 1 && i % 2 === 1) continue;
       ctx.save();
       ctx.translate(cx, cy);
-      ctx.rotate(a + Math.PI / 2 + rng.range(-0.3, 0.3));
+      ctx.rotate(a + Math.PI / 2 + tilt);
       ctx.fillStyle = greens[i % greens.length];
       ctx.beginPath();
       ctx.ellipse(0, 0, len * 0.28, len * 0.55, 0, 0, Math.PI * 2);
@@ -722,6 +1182,28 @@ export class SceneRenderer {
       ctx.lineTo(0, len * 0.5);
       ctx.stroke();
       ctx.restore();
+    }
+    if (stage >= 3) ctx.restore();
+    if (stage >= 1) {
+      // knocked-off leaves lying on the sill
+      const lr = new Rng(marks[0].seed);
+      for (let i = 0; i < 6; i++) {
+        ctx.save();
+        ctx.translate(pot.x + lr.range(-22, 48), pot.y + pot.h + lr.range(2, 8));
+        // lying flat, so mostly sideways
+        ctx.rotate(Math.PI / 2 + lr.range(-0.7, 0.7));
+        ctx.fillStyle = greens[i % greens.length];
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 1.7, 4.8, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(20,50,20,0.4)';
+        ctx.lineWidth = 0.3;
+        ctx.beginPath();
+        ctx.moveTo(0, -4.4);
+        ctx.lineTo(0, 4.4);
+        ctx.stroke();
+        ctx.restore();
+      }
     }
   }
 }

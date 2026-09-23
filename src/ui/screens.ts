@@ -3,6 +3,8 @@ import type { ScoreEntry } from '../analytics/Leaderboard';
 import type { PlayerStats } from '../analytics/StatsManager';
 import { PARAM_NOTES } from '../config/params';
 import { REFERENCES } from '../config/references';
+import { damageRank, formatMoney, type ReceiptLine } from '../game/DamageSystem';
+import { DIFFICULTIES, DIFFICULTY_ORDER, type DifficultyId, isDifficultyId } from '../game/DifficultyModes';
 import type { CircuitGraph } from '../neuroscience/connectome/ConnectomeLoader';
 
 export function esc(s: string): string {
@@ -23,22 +25,47 @@ export function fmtPct(x: number, digits = 1): string {
   return `${(x * 100).toFixed(digits)}%`;
 }
 
-export function titleHTML(stats: PlayerStats): string {
+/** Cartoon fly used on the title screen (wings flap with CSS). */
+const FLY_SVG = `<svg viewBox="0 0 64 48" aria-hidden="true">
+  <g class="wing wing-l"><ellipse cx="24" cy="16" rx="15" ry="8" transform="rotate(-25 24 16)"/></g>
+  <g class="wing wing-r"><ellipse cx="40" cy="16" rx="15" ry="8" transform="rotate(25 40 16)"/></g>
+  <ellipse cx="32" cy="30" rx="10" ry="12" fill="#b58a52"/>
+  <path d="M24 27h16M23 32h18M25 37h14" stroke="#5a3a1c" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="32" cy="17" r="8" fill="#8a5c34"/>
+  <circle cx="27" cy="15" r="5" fill="#c3242e"/><circle cx="37" cy="15" r="5" fill="#c3242e"/>
+  <circle cx="25.5" cy="13.5" r="1.6" fill="#fff" opacity=".8"/><circle cx="35.5" cy="13.5" r="1.6" fill="#fff" opacity=".8"/>
+</svg>`;
+
+export function difficultyPickerHTML(current: DifficultyId, compact = false): string {
+  return `<div class="diff-picker${compact ? ' compact' : ''}" role="radiogroup" aria-label="Difficulty">${DIFFICULTY_ORDER.map((id) => {
+    const d = DIFFICULTIES[id];
+    const on = id === current;
+    return `<button class="diff-card diff-${id}${on ? ' on' : ''}" role="radio" aria-checked="${on}" data-action="difficulty" data-diff="${id}">
+      <span class="diff-icon">${d.icon}</span>
+      <span class="diff-name">${d.label.toUpperCase()}</span>
+      ${compact ? '' : `<span class="diff-fly">${esc(d.flyName)}</span><span class="diff-blurb">${esc(d.blurb)}</span>`}
+    </button>`;
+  }).join('')}</div>`;
+}
+
+export function titleHTML(stats: PlayerStats, difficulty: DifficultyId): string {
   const record =
     stats.attempts > 0
-      ? `<p class="record">Your record: <b>${stats.attempts}</b> attempts · <b>${stats.catches}</b> catch${stats.catches === 1 ? '' : 'es'} · escape rate <b>${fmtPct(stats.attempts ? stats.escapes / stats.attempts : 1)}</b></p>`
+      ? `<p class="record">Your record: <b>${stats.attempts}</b> attempts · <b>${stats.catches}</b> catch${stats.catches === 1 ? '' : 'es'}${stats.totalDamage ? ` · <b>${formatMoney(stats.totalDamage)}</b> of damage` : ''}</p>`
       : '<p class="record">A fruit fly is somewhere in this room.</p>';
   return `
   <div class="title-card">
+    <div class="title-fly" aria-hidden="true"><div class="title-fly-path">${FLY_SVG}</div></div>
     <div class="kicker">FLY ESCAPE LAB</div>
-    <h1>CATCH THE FLY</h1>
+    <h1 class="title-h1"><span>CATCH</span> <span>THE</span> <span>FLY</span></h1>
     <p class="subtitle">Can you beat 200 million years of evolution?</p>
     ${record}
+    ${difficultyPickerHTML(difficulty)}
     <div class="btn-row">
       <button class="btn primary big" data-action="start">START</button>
       <button class="btn secondary" data-action="howto">HOW IT WORKS</button>
     </div>
-    <p class="fineprint">Loosely based on how real fruit flies escape. Not a full biological simulation.</p>
+    <p class="fineprint warn">⚠️ Things in this room break, and you pay for the damage.</p>
   </div>`;
 }
 
@@ -69,7 +96,19 @@ export function howToHTML(touch: boolean): string {
         <li>Tall things (cup, monitor, window sill) can block the swatter. Watch the outline.</li>
         <li>Tired flies jump weaker. Moving in fast makes it alert.</li>
       </ul>
-      <p class="muted">You'll miss about 99 times out of 100. Close calls are measured in millimetres, and the slow-motion replay shows what happened.</p>
+      <p class="muted">On Hard you'll miss about 99 times out of 100. Close calls are measured in millimetres, and the slow-motion replay shows what happened.</p>
+    </section>
+    <section>
+      <h3>Difficulty</h3>
+      <ul>
+        ${DIFFICULTY_ORDER.map((id) => `<li>${DIFFICULTIES[id].icon} <b>${DIFFICULTIES[id].label}</b>: ${esc(DIFFICULTIES[id].flyName.toLowerCase())}. ${esc(DIFFICULTIES[id].blurb)}.</li>`).join('')}
+      </ul>
+      <p class="muted">Same fly brain in every mode. Easier modes just slow down its reflexes and make it land closer.</p>
+    </section>
+    <section>
+      <h3>The damage bill</h3>
+      <p>The swatter breaks whatever it lands on: the window, the monitor, the phone, the lamp, the plant, the mug… Every crack goes on your bill.</p>
+      <p class="muted">When you finally get the fly, you see what it cost you. Catch it with a $0 bill for a <b>surgical</b> kill. The room is repaired for every new fly.</p>
     </section>
   </div>
   <div class="btn-row"><button class="btn secondary" data-action="science">Science &amp; About</button><button class="btn primary" data-action="close">Got it</button></div>`;
@@ -131,7 +170,7 @@ export function scienceHTML(circuit: CircuitGraph | null): string {
     </table></div>
 
     <h3>About the "99%"</h3>
-    <p>The game tries to keep your success rate around <b>1% of serious attacks</b> with an adaptive difficulty system, and the fly was tuned with simulated attacks to escape roughly 98-99.5% of the time. <b>That number is a design goal, not something measured in real flies.</b> The numbers in Lab Mode are results from this model.</p>
+    <p>On <b>Hard</b>, the game tries to keep your success rate around <b>1% of serious attacks</b> with an adaptive difficulty system, and the fly was tuned with simulated attacks to escape roughly 98-99.5% of the time. <b>That number is a design goal, not something measured in real flies.</b> Easy and Medium use the same fly with slower reflexes. The numbers in Lab Mode are results from this model.</p>
 
     <h3>Fair physics</h3>
     <p>The fly never teleports, never goes through surfaces and doesn't move after it's hit. Difficulty only changes between attacks. Hits are checked with a continuous (swept) collision test between the swatter head and the fly's body, 1000 times per second.</p>
@@ -149,10 +188,16 @@ export function scienceHTML(circuit: CircuitGraph | null): string {
 export interface StatsView {
   stats: PlayerStats;
   unlocked: Record<string, string>;
-  bests: { closestMiss: ScoreEntry[]; fewestAttempts: ScoreEntry[]; streak: ScoreEntry[] };
+  bests: { closestMiss: ScoreEntry[]; fewestAttempts: ScoreEntry[]; streak: ScoreEntry[]; lowestDamage: ScoreEntry[] };
   difficulty: number;
   rollingSuccess: number;
   flyName: string;
+  mode: DifficultyId;
+}
+
+function diffTag(detail: string | undefined): string {
+  const id = isDifficultyId(detail) ? detail : 'hard';
+  return `<span class="diff-tag diff-${id}">${DIFFICULTIES[id].icon} ${DIFFICULTIES[id].label}</span>`;
 }
 
 export function statsHTML(v: StatsView): string {
@@ -182,14 +227,19 @@ export function statsHTML(v: StatsView): string {
     ${card('LONGEST FLY STREAK', String(s.longestStreak), 'attacks survived by one fly')}
     ${card('LONGEST SURVIVAL', fmtTime(s.longestSurvivalS))}
     ${card('FLIES MET', String(s.flies), fmtTime(s.playTimeS) + ' played')}
+    ${card('CATCHES BY MODE', `${s.easyCatches} · ${s.mediumCatches} · ${s.hardCatches}`, '🐌 easy · 🪰 medium · 🥷 hard')}
+    ${card('TOTAL DAMAGE', formatMoney(s.totalDamage), `${s.itemsBroken} thing${s.itemsBroken === 1 ? '' : 's'} broken`)}
+    ${card('WORST ROUND', formatMoney(s.maxRoundDamage), 'most damage for one fly')}
+    ${card('CLEAN KILLS', String(s.cleanKills), 'catches with a $0 bill')}
   </div>
-  <p class="muted small">Difficulty ${v.difficulty.toFixed(2)} (0 = easy, 1 = hard) · recent success rate ${fmtPct(v.rollingSuccess, 2)} · current fly: ${esc(v.flyName)}</p>
+  <p class="muted small">Mode: ${DIFFICULTIES[v.mode].icon} ${DIFFICULTIES[v.mode].label}${v.mode === 'hard' ? ` · adaptive level ${v.difficulty.toFixed(2)} (0 = gentler, 1 = sharper)` : ''} · recent success rate ${fmtPct(v.rollingSuccess, 2)} · current fly: ${esc(v.flyName)}</p>
   <h3>Achievements</h3>
   <div class="ach-grid">${achievements}</div>
   <h3>Personal bests <small class="muted">(stored in this browser)</small></h3>
   <div class="bests">
+    <div><h4>Cleanest catches</h4>${best(v.bests.lowestDamage, (e) => `${formatMoney(e.value)} ${diffTag(e.detail)}`)}</div>
+    <div><h4>Fewest attempts per catch</h4>${best(v.bests.fewestAttempts, (e) => `${e.value} ${diffTag(e.detail)}`)}</div>
     <div><h4>Closest misses</h4>${best(v.bests.closestMiss, (e) => `${e.value.toFixed(2)} mm`)}</div>
-    <div><h4>Fewest attempts per catch</h4>${best(v.bests.fewestAttempts, (e) => `${e.value}`)}</div>
     <div><h4>Longest fly streaks</h4>${best(v.bests.streak, (e) => `${e.value}`)}</div>
   </div>
   <div class="btn-row">
@@ -200,29 +250,42 @@ export function statsHTML(v: StatsView): string {
 
 export interface CatchView {
   attempts: number;
-  lifetimeRate: number;
   lab: boolean;
-  survival: number;
   flyName: string;
   traits: string[];
   replay: boolean;
   airborne: boolean;
+  difficulty: DifficultyId;
+  receipt: ReceiptLine[];
+  total: number;
+  /** previous best (lowest) damage bill on this difficulty, null if this is the first catch */
+  previousBest: number | null;
 }
 
 export function catchHTML(v: CatchView): string {
-  const pct = v.lifetimeRate * 100;
-  const pctText = pct < 1 ? pct.toFixed(2) : pct.toFixed(1);
+  const d = DIFFICULTIES[v.difficulty];
+  const rank = damageRank(v.total);
+  const lines = v.receipt.length
+    ? v.receipt.map((r, i) => `<li style="--i:${i}"><span>${esc(r.label)}</span><span>${formatMoney(r.cost)}</span></li>`).join('')
+    : '<li class="none" style="--i:0"><span>Nothing broken ✨</span><span>$0</span></li>';
+  const record = v.lab
+    ? '<p class="muted">Lab catch. This fly\'s nervous system was modified, so it doesn\'t count toward your statistics.</p>'
+    : v.previousBest === null || v.total < v.previousBest
+      ? `<p class="best-line new">🏅 New personal best on ${d.label}!</p>`
+      : `<p class="best-line">Your cleanest catch on ${d.label}: <b>${formatMoney(v.previousBest)}</b></p>`;
   return `
   <div class="catch">
-    <div class="kicker">${v.airborne ? 'MID-AIR! ' : ''}${esc(v.flyName)} · ${esc(v.traits.join(', '))}</div>
-    <h1>YOU CAUGHT IT</h1>
-    <p class="catch-line">Attempts: <b>${v.attempts}</b></p>
-    ${
-      v.lab
-        ? '<p class="catch-line">Lab catch. This fly\'s nervous system was modified.</p><p class="muted">Lab results don\'t count toward your statistics.</p>'
-        : `<p class="catch-line">Only <b>${pctText}%</b> of your attacks succeeded.</p>`
-    }
-    <p class="muted">It survived ${fmtTime(v.survival)}.</p>
+    <div class="kicker catch-kicker"><span class="diff-tag diff-${d.id}">${d.icon} ${d.label}</span> ${v.airborne ? '<b>MID-AIR!</b> ' : ''}${esc(v.flyName)}</div>
+    <h1 class="catch-title">GOT IT!</h1>
+    <p class="catch-line">in <b>${v.attempts}</b> attempt${v.attempts === 1 ? '' : 's'}${v.traits.length ? ` · <span class="muted">${esc(v.traits.join(', '))}</span>` : ''}</p>
+    <div class="receipt" style="--n:${Math.max(1, v.receipt.length)}">
+      <div class="receipt-head"><span>DAMAGE BILL</span><span>🧾</span></div>
+      <ul class="receipt-lines">${lines}</ul>
+      <div class="receipt-total"><span>TOTAL DAMAGE</span><span id="receipt-total" class="${v.total <= 0 ? 'zero' : ''}" data-total="${Math.round(v.total)}">$0</span></div>
+      <div class="stamp rank-${rank.title.toLowerCase().replace(/\s+/g, '-')}" id="receipt-stamp">${esc(rank.title)}</div>
+    </div>
+    <p class="rank-line">${esc(rank.line)}</p>
+    ${record}
     <div class="btn-row">
       ${v.replay ? '<button class="btn secondary" data-action="replay">REPLAY</button>' : ''}
       <button class="btn primary big" data-action="new-fly">NEW FLY</button>
@@ -230,10 +293,14 @@ export function catchHTML(v: CatchView): string {
   </div>`;
 }
 
-export function menuHTML(opts: { muted: boolean; brain: boolean; debug: boolean; lab: boolean }): string {
+export function menuHTML(opts: { muted: boolean; brain: boolean; debug: boolean; lab: boolean; difficulty: DifficultyId; haptics: boolean | null }): string {
   return `
   <h2>Menu</h2>
   <div class="menu-list">
+    <div class="menu-diff">
+      <span class="menu-label">Difficulty <small class="muted">(changing it brings in a new fly)</small></span>
+      ${difficultyPickerHTML(opts.difficulty, true)}
+    </div>
     <button class="btn primary" data-action="close">Resume</button>
     <button class="btn secondary" data-action="howto">How it works</button>
     <button class="btn secondary" data-action="science">Science &amp; About</button>
@@ -241,6 +308,7 @@ export function menuHTML(opts: { muted: boolean; brain: boolean; debug: boolean;
     <button class="btn secondary" data-action="lab">${opts.lab ? 'Leave Lab Mode' : 'Lab Mode'}</button>
     <button class="btn secondary" data-action="brain">${opts.brain ? 'Hide' : 'Show'} Brain View</button>
     <button class="btn secondary" data-action="sound">${opts.muted ? 'Unmute' : 'Mute'} sound</button>
+    ${opts.haptics === null ? '' : `<button class="btn secondary" data-action="haptics">Vibration: ${opts.haptics ? 'on' : 'off'}</button>`}
     <button class="btn secondary" data-action="debug">${opts.debug ? 'Hide' : 'Show'} debug overlay</button>
   </div>`;
 }

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_PARAMS } from '../src/config/params';
 import type { AttackResult } from '../src/game/AttackTracker';
 import { DifficultyController, modulationForLevel } from '../src/game/DifficultyController';
+import { DIFFICULTIES } from '../src/game/DifficultyModes';
+import { runMonteCarlo } from '../src/sim/MonteCarlo';
 
 const D = DEFAULT_PARAMS.difficulty;
 
@@ -66,5 +68,30 @@ describe('adaptive difficulty controller', () => {
     const c = new DifficultyController(D);
     for (let i = 0; i < 100; i++) c.record(result({ hit: i < 2, minGapMm: i < 2 ? 0 : 30 }));
     expect(c.rollingSuccess).toBeCloseTo(0.02, 6);
+  });
+});
+
+describe('game modes', () => {
+  it('easy catches clearly more often than medium, and medium more than hard', () => {
+    const rate = (id: keyof typeof DIFFICULTIES) => runMonteCarlo({ attacks: 500, seed: 11, modulation: DIFFICULTIES[id].modulation ?? {} }).hitRate;
+    const easy = rate('easy');
+    const medium = rate('medium');
+    const hard = rate('hard');
+    expect(easy).toBeGreaterThan(medium * 1.8);
+    expect(medium).toBeGreaterThan(hard * 3);
+    expect(hard).toBeLessThan(0.05);
+    // even on easy the fly still escapes a good share of swings
+    expect(easy).toBeLessThan(0.75);
+  }, 30000);
+
+  it('hard is the unmodified, adaptive fly', () => {
+    expect(DIFFICULTIES.hard.modulation).toBeNull();
+    for (const id of ['easy', 'medium'] as const) {
+      const m = DIFFICULTIES[id].modulation!;
+      // easier modes only slow the fly down, never speed it up
+      expect(m.latencyScale!).toBeGreaterThan(1);
+      expect(m.thresholdScale!).toBeGreaterThan(1);
+      expect(m.takeoffScale!).toBeLessThan(1);
+    }
   });
 });

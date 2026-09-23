@@ -13,18 +13,49 @@ import { Camera } from '../render/Camera';
 import { DebugOverlay } from '../render/DebugOverlay';
 import { Effects } from '../render/Effects';
 import { type FlyPose, FlyRenderer } from '../render/FlyRenderer';
+import { drawBubble, RoomFx } from '../render/RoomFx';
 import { SceneRenderer } from '../render/SceneRenderer';
 import { type SwatterPose, SwatterRenderer } from '../render/SwatterRenderer';
 import { isDefaultLab, LAB_DEFAULTS, type LabSettings, labModulation } from '../sim/LabSettings';
 import { LabSimClient } from '../sim/LabSimClient';
+import { Haptics } from '../ui/Haptics';
 import { LabPanel } from '../ui/LabPanel';
-import { catchHTML, fmtTime, howToHTML, menuHTML, scienceHTML, statsHTML, titleHTML } from '../ui/screens';
+import { catchHTML, howToHTML, menuHTML, scienceHTML, statsHTML, titleHTML } from '../ui/screens';
 import { type ToastTone, UI } from '../ui/UI';
 import type { AttackResult } from './AttackTracker';
+import { type BreakKind, type DamageEvent, DamageSystem, formatMoney } from './DamageSystem';
 import { DifficultyController, modulationForLevel } from './DifficultyController';
+import { DIFFICULTIES, DIFFICULTY_ORDER, type DifficultyId, isDifficultyId } from './DifficultyModes';
 import { type ReplayClip, ReplaySystem } from './ReplaySystem';
 import { Simulation } from './Simulation';
 import { loadJSON, saveJSON } from '../analytics/storage';
+
+/** Comic-word colour per kind of break. */
+const WORD_COLORS: Record<BreakKind, string> = {
+  glass: '#bfe8ff',
+  screen: '#8fd8ff',
+  metal: '#ffe07a',
+  bulb: '#ffd35c',
+  leaves: '#9be15d',
+  terracotta: '#ff9a5c',
+  ceramic: '#ffffff',
+  liquid: '#e0a36a',
+  fruit: '#ffe070',
+  paper: '#fff6dc',
+  crumbs: '#f0c080',
+};
+
+/** What the fly says after dodging you. */
+const TAUNTS = {
+  close: ['WHOA! 😱', 'My wings!!', 'That was close!', 'Eek!', 'Almost… not!'],
+  near: ['Missed me!', 'Too slow!', 'Nope!', 'Ha! 😜', 'Nice try!'],
+  far: ['Is that all?', 'Over here!', 'Yawn…', 'Bzzz 😎', 'Try harder!', 'Wrong spot!'],
+  blocked: ['Safe! 😎', 'Can’t touch this!', 'Behind cover!'],
+  sleepy: ['Huh? 😴', 'Zzz… wha?', 'Five more minutes…'],
+  wreck: ['Nice window 😂', 'Who’s paying for that?', 'Oops! Not me!'],
+};
+
+const pick = <T,>(a: readonly T[]): T => a[Math.floor(Math.random() * a.length)];
 
 type Mode = 'title' | 'play' | 'caught' | 'replay';
 
@@ -66,6 +97,17 @@ export class Game {
   private readonly replay: ReplaySystem;
   private readonly labSim = new LabSimClient();
   private circuit: CircuitGraph | null = null;
+  /** everything broken while chasing the current fly */
+  readonly damage = new DamageSystem();
+  private readonly roomFx: RoomFx;
+  readonly haptics = new Haptics();
+  difficultyId: DifficultyId;
+  /** kill cam: slow motion right after the fly is hit */
+  private slowmo: { t: number; dur: number } | null = null;
+  private taunt: { text: string; t: number; life: number } | null = null;
+  private tauntCooldown = 0;
+  /** attack that broke something (the fly may gloat about it) */
+  private lastBreakAt = -1;
 
   mode: Mode = 'title';
   private showBrain = false;
@@ -87,6 +129,8 @@ export class Game {
   private pointerVy = 0;
   private lastAimWX = NaN;
   private lastAimWY = NaN;
+  /** lowest damage bill on this difficulty before the current catch */
+  private catchBest: number | null = null;
   /** brief ring that shows where the fly just landed */
   private ping: { x: number; y: number; t: number } | null = null;
   private player: ReplayPlayer | null = null;
@@ -111,7 +155,15 @@ export class Game {
     // Phones/tablets: zoom in further so the fly stays comfortably visible (view pans).
     const coarse = matchMedia('(pointer: coarse)').matches;
     this.camera = new Camera(this.sim.scene.width, this.sim.scene.height, coarse ? 2.9 : 2.3);
-    this.scene = new SceneRenderer(this.sim.scene);
+    this.scene = new SceneRenderer(this.sim.scene, this.damage);
+    this.roomFx = new RoomFx(this.sim.scene);
+    this.roomFx.onNotice = () => {
+      this.audio.phoneBuzz();
+      this.haptics.play('light');
+    };
+    this.roomFx.onSpark = () => this.audio.sputter();
+    const savedMode = loadJSON<string>('mode', 'medium');
+    this.difficultyId = isDifficultyId(savedMode) ? savedMode : 'medium';
     this.difficulty = new DifficultyController(this.sim.params.difficulty, loadJSON('difficulty', undefined));
     this.replay = new ReplaySystem(this.sim);
     this.touchDevice = matchMedia('(pointer: coarse)').matches;
@@ -143,8 +195,15 @@ export class Game {
           const sw = this.sim.swatter;
           this.audio.impact(e.surface.material, e.hit, e.speed);
           this.effects.impact(e.x, e.y, sw.hx, sw.hy, sw.r, clamp(e.speed / 3800, 0.2, 1), e.hit);
+          if (this.mode !== 'play' && this.mode !== 'caught') break;
+          if (!e.hit) this.haptics.play('light');
+          const broke = this.damage.impact(e.surface, e.x, e.y, sw.hx, sw.hy, e.speed, (id) => this.sim.scene.byId(id));
+          if (broke) this.onBreak(broke);
           break;
         }
+        case 'hit':
+          if (this.mode === 'play') this.startKillCam();
+          break;
         case 'takeoff':
           this.audio.takeoff(e.mode !== 'voluntary');
           break;
@@ -181,7 +240,7 @@ export class Game {
     this.sim.swatter.active = false;
     this.sim.swatter.reset(this.camera.toWorldX(this.aimSX), this.camera.toWorldY(this.aimSY));
     this.camera.centerOn(this.sim.fly.pos.x, this.sim.fly.pos.y);
-    this.ui.showTitle(titleHTML(this.stats.stats));
+    this.ui.showTitle(titleHTML(this.stats.stats, this.difficultyId));
   }
 
   start(): void {
@@ -214,6 +273,15 @@ export class Game {
     this.time += dtReal;
     const sim = this.sim;
     this.stepsThisFrame = 0;
+    // kill cam: time crawls right after the hit, then eases back to normal
+    let timeScale = 1;
+    if (this.slowmo) {
+      this.slowmo.t += dtReal;
+      const u = this.slowmo.t / this.slowmo.dur;
+      if (u >= 1) this.slowmo = null;
+      else timeScale = 0.1 + 0.9 * u * u * u;
+    }
+    const dtSim = dtReal * timeScale;
     if (this.mode === 'replay') {
       this.updateReplay(dtReal);
     } else if (!this.paused) {
@@ -228,7 +296,7 @@ export class Game {
       this.lastAimWX = aimWX;
       this.lastAimWY = aimWY;
       if (this.sim.swatter.active) sim.swatter.setTarget(aimWX, aimWY);
-      this.acc += dtReal;
+      this.acc += dtSim;
       const maxSteps = 120;
       while (this.acc >= sim.dt && this.stepsThisFrame < maxSteps) {
         sim.step();
@@ -249,8 +317,14 @@ export class Game {
         this.replay.capture(this.pendingCapture.result);
         this.pendingCapture = null;
       }
+      this.roomFx.update(dtSim, this.damage, this.effects);
+      this.tauntCooldown = Math.max(0, this.tauntCooldown - dtReal);
+      if (this.taunt) {
+        this.taunt.t += dtReal;
+        if (this.taunt.t >= this.taunt.life || !sim.fly.alive) this.taunt = null;
+      }
     }
-    this.effects.update(dtReal);
+    this.effects.update(this.mode === 'replay' ? dtReal : dtSim);
     if (this.ping) {
       this.ping.t += dtReal;
       if (this.ping.t > 0.9) this.ping = null;
@@ -374,12 +448,16 @@ export class Game {
     const cam = this.camera;
     const dpr = this.dpr;
     const s = cam.scale;
-    const [shx, shy] = this.effects.shake();
+    const [shx, shy] = this.effects.shakeOffset();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this.scene.refresh(); // repaints the room only if something broke
     this.scene.draw(ctx, cam, dpr);
     // world transform (mm -> device px)
     ctx.setTransform(dpr * s, 0, 0, dpr * s, (-cam.x0 * s + shx) * dpr, (-cam.y0 * s + shy) * dpr);
-    this.effects.steam(ctx, this.time, 175, 180);
+    this.roomFx.draw(ctx, this.damage, this.time);
+    const cup = this.damage.stage('cup');
+    this.effects.steam(ctx, this.time, 175, 180, cup >= 3 ? 0 : cup >= 1 ? 0.45 : 1);
+    this.effects.drawUnder(ctx);
     const replayFrame = this.player ? ReplaySystem.frame(this.player.clip, this.player.t) : null;
     const swPose = replayFrame ? replayFrame.swatter : this.swatterPose();
     const flyPose = replayFrame ? replayFrame.fly : this.flyPose();
@@ -402,7 +480,12 @@ export class Game {
     if (this.showDebug && !replayFrame) this.debug.drawWorld(ctx, this.sim, s);
     // screen space
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    if (!replayFrame) this.drawOffscreenIndicator(ctx);
+    if (!replayFrame) {
+      this.drawOffscreenIndicator(ctx);
+      this.drawTaunt(ctx);
+      this.roomFx.drawScreen(ctx, cam, this.reducedMotion);
+    }
+    this.effects.drawScreen(ctx, cam);
     const safe = this.safe;
     if (this.showBrain && this.mode !== 'replay') {
       const w = Math.min(380, cam.viewW - 20 - safe.left - safe.right);
@@ -425,6 +508,68 @@ export class Game {
       });
     }
     if (replayFrame && this.player) this.drawReplayHud(ctx, this.player, replayFrame.threat);
+  }
+
+  /** The fly's speech bubble, following it around. */
+  private drawTaunt(ctx: CanvasRenderingContext2D): void {
+    const tn = this.taunt;
+    if (!tn) return;
+    const cam = this.camera;
+    const f = this.sim.fly;
+    const x = cam.sx(f.pos.x);
+    const y = cam.sy(f.pos.y) - 12;
+    const u = tn.t / tn.life;
+    const alpha = u < 0.08 ? u / 0.08 : u > 0.8 ? (1 - u) / 0.2 : 1;
+    const p = Math.min(1, tn.t / 0.2);
+    const pop = this.reducedMotion ? 1 : 0.5 + 0.5 * (1 + 2.4 * (p - 1) ** 3 + 1.4 * (p - 1) ** 2);
+    drawBubble(ctx, x, Math.max(cam.insetTop + 60, y), [tn.text], alpha, pop, cam.viewW);
+  }
+
+  private sayTaunt(text: string): void {
+    this.taunt = { text, t: 0, life: 1.7 };
+    this.tauntCooldown = 2.5;
+    this.audio.taunt();
+  }
+
+  /** Something in the room broke under the swatter. */
+  private onBreak(ev: DamageEvent): void {
+    this.audio.smash(ev.kind, ev.final);
+    if (ev.cost >= 20) window.setTimeout(() => this.audio.kaChing(), 240);
+    this.effects.burst(ev.x, ev.y, ev.kind, ev.final ? 1.3 : 0.8);
+    this.effects.word(ev.x, ev.y, ev.word, WORD_COLORS[ev.kind], ev.final ? 36 : 28);
+    this.effects.money(ev.x, ev.y, `−${formatMoney(ev.cost)}`);
+    this.effects.shake(ev.final ? 7 : 4, ev.final ? 0.35 : 0.22);
+    if (ev.final && ev.cost >= 100) this.effects.flash(ev.kind === 'bulb' ? '255,220,140' : '255,255,255', 0.35, 0.25);
+    this.haptics.play(ev.final ? 'heavy' : 'medium');
+    this.lastBreakAt = this.sim.time;
+    this.roomFx.onDamage();
+    if (!this.labMode) {
+      this.stats.recordDamage(ev, this.damage.total);
+      this.checkAchievements(null);
+    }
+    this.ui.bumpDamage();
+    this.updateHud();
+  }
+
+  /** The fly was hit: slow motion, splat, flash and a zoom punch. */
+  private startKillCam(): void {
+    const f = this.sim.fly;
+    this.slowmo = { t: 0, dur: this.reducedMotion ? 0.3 : 1.15 };
+    this.taunt = null;
+    this.effects.splat(f.pos.x, f.pos.y);
+    this.effects.word(f.pos.x, f.pos.y, 'SPLAT!', '#ffe070', 44);
+    this.effects.flash('255,255,255', 0.6, 0.35);
+    this.effects.shake(8, 0.4);
+    this.audio.splat();
+    this.audio.slowmo();
+    this.haptics.play('success');
+    if (!this.reducedMotion) {
+      const c = this.canvas;
+      c.style.transformOrigin = `${this.camera.sx(f.pos.x).toFixed(0)}px ${this.camera.sy(f.pos.y).toFixed(0)}px`;
+      c.classList.remove('punch');
+      void c.offsetWidth;
+      c.classList.add('punch');
+    }
   }
 
   private drawOffscreenIndicator(ctx: CanvasRenderingContext2D): void {
@@ -660,6 +805,7 @@ export class Game {
 
   action(name: string, el?: HTMLElement): void {
     this.audio.unlock();
+    if (name !== 'difficulty' && name !== 'replay-toggle' && name !== 'replay-speed') this.audio.uiTap();
     switch (name) {
       case 'start':
         this.startPlay();
@@ -674,7 +820,26 @@ export class Game {
         this.openStats();
         break;
       case 'menu':
-        this.ui.openModal('menu', menuHTML({ muted: this.audio.muted, brain: this.showBrain, debug: this.showDebug, lab: this.labMode }));
+        this.ui.openModal(
+          'menu',
+          menuHTML({
+            muted: this.audio.muted,
+            brain: this.showBrain,
+            debug: this.showDebug,
+            lab: this.labMode,
+            difficulty: this.difficultyId,
+            haptics: this.haptics.supported ? this.haptics.enabled : null,
+          }),
+        );
+        break;
+      case 'difficulty': {
+        const id = el?.dataset.diff;
+        if (isDifficultyId(id)) this.setDifficulty(id);
+        break;
+      }
+      case 'haptics':
+        this.haptics.setEnabled(!this.haptics.enabled);
+        if (this.ui.modalName === 'menu') this.action('menu');
         break;
       case 'close':
         if (this.ui.modalName === 'catch') return;
@@ -753,8 +918,28 @@ export class Game {
     sw.active = true;
     sw.reset(this.camera.toWorldX(this.aimSX), this.camera.toWorldY(this.aimSY));
     this.lastFrame = performance.now();
-    if (this.touchDevice) this.ui.toast('Drag to aim, tap to swat', 'The dashed outline shows where the swatter will land.', 'info', false);
-    else this.ui.toast('Move to aim, click to swat', 'The dashed outline shows where the swatter will land.', 'info', false);
+    this.haptics.play('light');
+    const d = DIFFICULTIES[this.difficultyId];
+    const sub = `${d.icon} ${d.label}: ${d.flyName.toLowerCase()}. Careful, things break!`;
+    if (this.touchDevice) this.ui.toast('Drag to aim, tap to swat', sub, 'info', false);
+    else this.ui.toast('Move to aim, click to swat', sub, 'info', false);
+    this.updateHud();
+  }
+
+  /** Switch game mode. Mid-game this brings in a fresh fly (and a repaired room). */
+  private setDifficulty(id: DifficultyId): void {
+    const changed = id !== this.difficultyId;
+    this.difficultyId = id;
+    saveJSON('mode', id);
+    this.audio.select(DIFFICULTY_ORDER.indexOf(id));
+    this.haptics.play('light');
+    if (this.ui.titleVisible) {
+      this.ui.selectDifficulty(id);
+      return;
+    }
+    if (this.ui.modalName === 'menu') this.ui.closeModal();
+    if (changed && !this.labMode) this.newFly();
+    else this.applyModulation(false);
   }
 
   private openStats(): void {
@@ -767,10 +952,12 @@ export class Game {
           closestMiss: this.leaderboard.topSync('closestMiss', 5),
           fewestAttempts: this.leaderboard.topSync('fewestAttemptsPerCatch', 5),
           streak: this.leaderboard.topSync('longestFlyStreak', 5),
+          lowestDamage: this.leaderboard.topSync('lowestDamage', 5),
         },
         difficulty: this.difficulty.level,
         rollingSuccess: this.difficulty.rollingSuccess,
         flyName: `#${this.sim.fly.id} ${this.sim.fly.genome.nickname}`,
+        mode: this.difficultyId,
       }),
       true,
     );
@@ -796,28 +983,54 @@ export class Game {
       }
     } else {
       this.stats.recordAttack(r, this.flyStreak, FLY_STATE_NAMES[r.flyStateAtStrike]);
-      this.difficulty.record(r);
-      saveJSON('difficulty', this.difficulty.state);
-      this.applyModulation(false);
+      // only Hard adapts to the player; Easy and Medium are fixed
+      if (!DIFFICULTIES[this.difficultyId].modulation) {
+        this.difficulty.record(r);
+        saveJSON('difficulty', this.difficulty.state);
+        this.applyModulation(false);
+      }
       if (r.serious && !r.hit) void this.leaderboard.submit({ category: 'closestMiss', value: r.minGapMm, date: new Date().toISOString() });
       this.checkAchievements(r);
     }
     const close = r.hit || (r.serious && r.minGapMm <= 30);
     if (close) this.pendingCapture = { result: r, at: r.impactTime + 0.13 };
     if (r.hit) {
-      this.audio.catchJingle();
       this.mode = 'caught';
+      this.catchBest = this.leaderboard.topSync('lowestDamage', 1, this.difficultyId)[0]?.value ?? null;
       if (!this.labMode) {
+        const date = new Date().toISOString();
+        const detail = this.difficultyId;
         this.stats.recordSurvival(this.flySurvival);
-        void this.leaderboard.submit({ category: 'fewestAttemptsPerCatch', value: this.flyAttempts, date: new Date().toISOString() });
-        void this.leaderboard.submit({ category: 'longestFlyStreak', value: this.flyStreak, date: new Date().toISOString() });
+        this.stats.recordCatch(this.difficultyId, this.damage.total);
+        void this.leaderboard.submit({ category: 'fewestAttemptsPerCatch', value: this.flyAttempts, date, detail });
+        void this.leaderboard.submit({ category: 'longestFlyStreak', value: this.flyStreak, date });
+        void this.leaderboard.submit({ category: 'lowestDamage', value: this.damage.total, date, detail });
+        this.checkAchievements(r);
       }
       clearTimeout(this.catchTimer);
-      this.catchTimer = window.setTimeout(() => this.showCatchScreen(), 750);
+      this.catchTimer = window.setTimeout(() => this.showCatchScreen(), this.slowmo ? 1500 : 800);
       return;
     }
     this.toastForResult(r, close);
-    void fly;
+    this.maybeTaunt(r, fly.alive);
+  }
+
+  /** Sometimes the fly gloats after a serious miss. */
+  private maybeTaunt(r: AttackResult, alive: boolean): void {
+    if (!alive || this.tauntCooldown > 0 || this.labMode) return;
+    const brokeSomething = this.lastBreakAt >= r.strikeStartTime;
+    if (!r.serious && !brokeSomething) return;
+    const gap = r.minGapMm;
+    let lines: readonly string[];
+    if (brokeSomething && Math.random() < 0.6) lines = TAUNTS.wreck;
+    else if (r.sheltered) lines = TAUNTS.blocked;
+    else if (gap <= 5) lines = TAUNTS.close;
+    else if (this.difficultyId === 'easy' && Math.random() < 0.4) lines = TAUNTS.sleepy;
+    else if (gap <= 20) lines = TAUNTS.near;
+    else lines = TAUNTS.far;
+    // not every time, or it gets old
+    if (gap > 5 && !brokeSomething && Math.random() < 0.45) return;
+    this.sayTaunt(pick(lines));
   }
 
   private toastForResult(r: AttackResult, replay: boolean): void {
@@ -839,25 +1052,42 @@ export class Game {
   private showCatchScreen(): void {
     if (this.mode === 'replay') return;
     const f = this.sim.fly;
-    const s = this.stats.stats;
     this.ui.hideToast();
+    this.canvas.classList.remove('punch');
     this.ui.openModal(
       'catch',
       catchHTML({
         attempts: Math.max(1, this.flyAttempts),
-        lifetimeRate: s.attempts ? s.catches / s.attempts : 1,
         lab: this.labMode,
-        survival: this.flySurvival,
         flyName: `Fly #${f.id} "${f.genome.nickname}"`,
         traits: f.genome.traits,
         replay: !!this.replay.clip && this.replay.clip.result.hit,
         airborne: !!this.sim.tracker.lastResult?.airborneHit,
+        difficulty: this.difficultyId,
+        receipt: this.damage.receipt,
+        total: this.damage.total,
+        previousBest: this.catchBest,
       }),
+    );
+    this.audio.catchJingle();
+    this.ui.animateReceipt(
+      this.reducedMotion,
+      () => this.audio.tick(),
+      () => {
+        this.audio.stamp();
+        this.haptics.play('medium');
+      },
     );
   }
 
   private newFly(): void {
     this.ui.closeModal();
+    this.canvas.classList.remove('punch');
+    this.slowmo = null;
+    this.taunt = null;
+    // a fresh fly, and the room is repaired
+    this.damage.reset();
+    this.roomFx.reset();
     const fly = this.sim.spawnFly({ at: 'edge' });
     this.flySurvival = 0;
     this.flyAttempts = 0;
@@ -867,7 +1097,10 @@ export class Game {
     if (!this.labMode) this.stats.bump('flies');
     this.applyModulation(true);
     this.lastFrame = performance.now();
-    this.ui.toast(`Fly #${fly.id} "${fly.genome.nickname}" flies in`, fly.genome.traits.join(' · '), 'info', false);
+    this.audio.flyIn();
+    const d = DIFFICULTIES[this.difficultyId];
+    this.ui.toast(`Fly #${fly.id} "${fly.genome.nickname}" flies in`, `${d.icon} ${d.label} · ${fly.genome.traits.join(' · ')} · room repaired`, 'info', false);
+    this.updateHud();
   }
 
   private checkAchievements(r: AttackResult | null): void {
@@ -880,9 +1113,10 @@ export class Game {
 
   private applyModulation(immediate: boolean): void {
     const P = this.sim.params.difficulty;
+    const fixed = DIFFICULTIES[this.difficultyId].modulation;
     const mod = this.labMode
       ? combineModulation(modulationForLevel(0.5, P), labModulation(this.labSettings))
-      : combineModulation(this.difficulty.modulation());
+      : combineModulation(fixed ?? this.difficulty.modulation());
     this.sim.setModulation(mod, immediate);
   }
 
@@ -944,8 +1178,14 @@ export class Game {
     if (this.mode === 'title') return;
     const f = this.sim.fly;
     if (!this.labMode && this.mode === 'play' && f.alive) this.stats.recordSurvival(this.flySurvival);
-    const badge = this.labMode ? 'LAB MODE' : `Fly #${f.id} · ${f.genome.nickname}`;
-    this.ui.setHud(fmtTime(this.flySurvival), this.flyAttempts, badge);
+    const d = DIFFICULTIES[this.difficultyId];
+    this.ui.setHud(
+      formatMoney(this.damage.total),
+      this.flyAttempts,
+      this.labMode ? 'lab' : d.id,
+      this.labMode ? 'LAB MODE' : `${d.icon} ${d.label.toUpperCase()}`,
+      `Fly #${f.id} · ${f.genome.nickname}`,
+    );
   }
 
   private onVisibility(): void {
