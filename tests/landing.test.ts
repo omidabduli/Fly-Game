@@ -72,8 +72,8 @@ describe('landing selection', () => {
   });
 
   it('a fly will not land right under a hovering swatter', () => {
-    const site = { x: 240, y: 250, z: 150, object: scene.byId('desk')!, score: 1, shelter: 0, distance: 0 };
-    expect(ls.siteThreatened(site, 245, 255, 240, 40)).toBe(true);
+    const site = { x: 240, y: 300, z: 28, object: scene.byId('table')!, score: 1, shelter: 0, distance: 0 };
+    expect(ls.siteThreatened(site, 245, 305, 240, 40)).toBe(true);
     expect(ls.siteThreatened(site, 400, 100, 240, 40)).toBe(false);
   });
 });

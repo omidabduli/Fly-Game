@@ -328,13 +328,6 @@ export class AudioEngine {
         [523, 1311, 2149, 3212].forEach((f, i) => this.tone(f, 0.05 / (i + 1), 0.55, i % 2 ? 'sine' : 'triangle', 0, f * 0.985, 0.4));
         this.hiss('bandpass', 4000, 0.06, 0.05, { q: 3 });
         break;
-      case 'bulb':
-        this.hiss('lowpass', 2400, 0.25, 0.04);
-        this.tone(190, 0.2, 0.12, 'sine', 0, 60);
-        this.tinkle(10, 3200, 7000, 0.35, 0.035, 0.5);
-        this.zap(false);
-        this.tone(120, 0.05, 0.5, 'sawtooth', 0.02, 40, 0.2);
-        break;
       case 'leaves':
         for (let i = 0; i < 5; i++) this.hiss('bandpass', 3500 + Math.random() * 2500, 0.06, 0.06, { q: 1.5, delay: i * 0.05 });
         break;
@@ -350,11 +343,6 @@ export class AudioEngine {
         this.hiss('lowpass', 3200, 0.2, 0.3, { endFreq: 400, q: 0.8, wet: 0.2 });
         for (let i = 0; i < 6; i++) this.tone(300 + Math.random() * 400, 0.04, 0.05, 'sine', 0.03 + Math.random() * 0.25, 900 + Math.random() * 600);
         break;
-      case 'fruit':
-        this.tone(220, 0.16, 0.14, 'sine', 0, 70);
-        this.hiss('lowpass', 1200, 0.16, 0.12, { endFreq: 300 });
-        this.tone(500, 0.05, 0.06, 'sine', 0.05, 1400);
-        break;
       case 'paper':
         if (final) this.hiss('bandpass', 700, 0.12, 0.35, { endFreq: 4200, q: 2.5 });
         for (let i = 0; i < 4; i++) this.hiss('bandpass', 1800 + Math.random() * 1500, 0.07, 0.05, { q: 1, delay: i * 0.07 });
@@ -363,7 +351,103 @@ export class AudioEngine {
       case 'crumbs':
         for (let i = 0; i < 8; i++) this.hiss('bandpass', 2200 + Math.random() * 2000, 0.07, 0.015, { q: 2, delay: Math.random() * 0.12 });
         break;
+      case 'food':
+        // squelch
+        this.tone(180, 0.18, 0.16, 'sine', 0, 60);
+        this.hiss('lowpass', 1500, 0.2, 0.18, { endFreq: 260 });
+        this.tone(700, 0.04, 0.08, 'sine', 0.06, 250);
+        break;
+      case 'person':
+        this.bonk();
+        break;
     }
+  }
+
+  /** Cartoon head bonk: woodblock + a wobbly "boing". */
+  private bonk(): void {
+    if (!this.ctx || !this.master) return;
+    this.tone(880, 0.16, 0.05, 'triangle', 0, 520);
+    this.hiss('bandpass', 1800, 0.12, 0.03, { q: 3 });
+    const ctx = this.ctx;
+    const t = ctx.currentTime + 0.04;
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(260, t);
+    o.frequency.exponentialRampToValueAtTime(620, t + 0.35);
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 22;
+    const lg = ctx.createGain();
+    lg.gain.value = 40;
+    lfo.connect(lg).connect(o.frequency);
+    const g = this.envGain(0.07, 0.01, 0.4, 0.04);
+    o.connect(g).connect(this.out(0.2));
+    o.start(t);
+    lfo.start(t);
+    o.stop(t + 0.5);
+    lfo.stop(t + 0.5);
+  }
+
+  /** Applause when the fly is finally caught. */
+  applause(): void {
+    if (!this.ctx) return;
+    for (let i = 0; i < 42; i++) this.hiss('bandpass', 1100 + Math.random() * 1600, 0.05 + Math.random() * 0.04, 0.02 + Math.random() * 0.02, { q: 1.4, delay: 0.25 + Math.random() * 1.8 * Math.sqrt(Math.random()), wet: 0.4 });
+  }
+
+  /**
+   * Mensa background noise: murmur of voices and cutlery. Very quiet, started
+   * once audio is unlocked and faded with `setAmbience`.
+   */
+  private ambGain: GainNode | null = null;
+  private clinkTimer = 0;
+
+  setAmbience(on: boolean): void {
+    if (!this.ctx || !this.master) return;
+    const ctx = this.ctx;
+    if (!this.ambGain) {
+      const n = this.noiseSource();
+      if (!n) return;
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = 420;
+      bp.Q.value = 0.7;
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 900;
+      // slow swells, like many voices
+      const am = ctx.createGain();
+      am.gain.value = 0.7;
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = 0.35;
+      const lfoG = ctx.createGain();
+      lfoG.gain.value = 0.25;
+      lfo.connect(lfoG).connect(am.gain);
+      const lfo2 = ctx.createOscillator();
+      lfo2.frequency.value = 3.1;
+      const lfo2G = ctx.createGain();
+      lfo2G.gain.value = 0.12;
+      lfo2.connect(lfo2G).connect(am.gain);
+      this.ambGain = ctx.createGain();
+      this.ambGain.gain.value = 0;
+      n.connect(bp).connect(lp).connect(am).connect(this.ambGain).connect(this.master);
+      n.start();
+      lfo.start();
+      lfo2.start();
+    }
+    this.ambGain.gain.setTargetAtTime(on ? 0.05 : 0, ctx.currentTime, 0.6);
+    this.ambientOn = on;
+  }
+
+  private ambientOn = false;
+
+  /** Call every frame: occasional cutlery clinks while the ambience is on. */
+  tickAmbience(dt: number): void {
+    if (!this.ambientOn || !this.ctx) return;
+    this.clinkTimer -= dt;
+    if (this.clinkTimer > 0) return;
+    this.clinkTimer = 0.4 + Math.random() * 2.2;
+    const f = 2400 + Math.random() * 2600;
+    this.tone(f, 0.006 + Math.random() * 0.008, 0.06 + Math.random() * 0.08, 'triangle', 0, undefined, 0.3);
+    if (Math.random() < 0.3) this.tone(f * 1.34, 0.005, 0.05, 'sine', 0.05, undefined, 0.3);
   }
 
   /** Electric crackle, and a power-down whine when the thing is dead. */
@@ -374,7 +458,7 @@ export class AudioEngine {
     if (dead) this.tone(1100, 0.05, 0.7, 'sine', 0.08, 55, 0.3);
   }
 
-  /** Little electric sputter from a broken lamp or monitor. */
+  /** Little electric sputter from a broken laptop or screen. */
   sputter(): void {
     for (let i = 0; i < 3; i++) this.hiss('bandpass', 3000 + Math.random() * 2500, 0.03, 0.01, { q: 4, delay: Math.random() * 0.08 });
   }

@@ -1,4 +1,5 @@
 import type { AchievementDef } from '../analytics/Achievements';
+import { formatMoney } from '../game/DamageSystem';
 import type { ReplayEvent } from '../game/ReplaySystem';
 import { ICONS } from './icons';
 import { esc } from './screens';
@@ -40,10 +41,11 @@ export class UI {
       'beforeend',
       `
       <header class="hud" id="hud" hidden>
-        <div class="hud-stat"><span class="hud-label">Damage</span><span class="hud-value hud-damage" id="hud-damage">$0</span></div>
+        <div class="hud-stat"><span class="hud-label">Damage</span><span class="hud-value hud-damage" id="hud-damage">0 €</span></div>
         <div class="hud-badge" id="hud-badge"><span class="diff-tag" id="hud-diff"></span><span class="hud-fly" id="hud-fly"></span></div>
         <div class="hud-stat right"><span class="hud-label">Attempts</span><span class="hud-value" id="hud-attempts">0</span></div>
         <nav class="hud-buttons" aria-label="Game controls">
+          <button class="icon-btn replay-btn" data-action="replay" id="btn-replay" aria-label="Replay the last close call" hidden>${ICONS.replay}</button>
           <button class="icon-btn" data-action="sound" id="btn-sound" aria-label="Mute sound">${ICONS.soundOn}</button>
           <button class="icon-btn" data-action="brain" id="btn-brain" aria-label="Toggle Brain View" aria-pressed="false">${ICONS.brain}</button>
           <button class="icon-btn" data-action="lab" id="btn-lab" aria-label="Toggle Lab Mode" aria-pressed="false">${ICONS.flask}</button>
@@ -117,6 +119,18 @@ export class UI {
     this.hudBadge.classList.toggle('lab', mode === 'lab');
   }
 
+  /** Show the replay button once there's a close call to watch (it pulses when a new one arrives). */
+  setReplayAvailable(on: boolean): void {
+    const b = this.root.querySelector<HTMLElement>('#btn-replay');
+    if (!b) return;
+    b.hidden = !on;
+    b.classList.remove('pulse');
+    if (on) {
+      void b.offsetWidth;
+      b.classList.add('pulse');
+    }
+  }
+
   /** Little "the bill went up" animation on the HUD damage counter. */
   bumpDamage(): void {
     const el = this.hudDamage;
@@ -136,15 +150,15 @@ export class UI {
     const receipt = this.modalCard.querySelector<HTMLElement>('.receipt');
     if (!totalEl || !stampEl || !receipt) return;
     const total = Number(totalEl.dataset.total) || 0;
-    const lines = receipt.querySelectorAll('.receipt-lines li').length;
-    const fmt = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
+    const lines = Math.min(12, receipt.querySelectorAll('.receipt-lines li').length);
+    const fmt = (n: number) => formatMoney(Math.round(n * 100) / 100);
     if (reducedMotion) {
       totalEl.textContent = fmt(total);
       stampEl.classList.add('show');
       return;
     }
     // wait for the receipt lines to slide in, then count up
-    const start = 350 + lines * 130;
+    const start = 350 + lines * 90;
     const steps = total > 0 ? Math.min(24, Math.max(6, Math.round(Math.sqrt(total) * 1.4))) : 0;
     let i = 0;
     const step = () => {

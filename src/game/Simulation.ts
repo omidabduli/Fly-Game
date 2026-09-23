@@ -230,6 +230,18 @@ export class Simulation {
     this.emit({ type: 'hit', t, strikeId: this.swatter.strikeId, airborne });
   }
 
+  /**
+   * Someone waves the fly off their plate: if it's calmly sitting there (and no
+   * swing is in progress) it takes off, just like a spontaneous take-off.
+   */
+  shoo(): boolean {
+    const fly = this.fly;
+    const calm = fly.state === FlyState.RESTING || fly.state === FlyState.GROOMING || fly.state === FlyState.WALKING;
+    if (!fly.alive || !calm || this.swatter.busy || this.tracker.inProgress || fly.brain.motor.pending) return false;
+    fly.brain.voluntaryTakeoff(this.ctx, false);
+    return true;
+  }
+
   /** Advance by `seconds` of simulated time. */
   advance(seconds: number): void {
     const n = Math.round(seconds / this.dt);

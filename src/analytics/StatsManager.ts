@@ -1,5 +1,5 @@
 import type { AttackResult } from '../game/AttackTracker';
-import type { DamageEvent } from '../game/DamageSystem';
+import type { BreakableId, DamageEvent } from '../game/DamageSystem';
 import type { DifficultyId } from '../game/DifficultyModes';
 import { loadJSON, saveJSON } from './storage';
 
@@ -43,9 +43,11 @@ export interface PlayerStats {
   maxRoundDamage: number;
   /** things damaged or broken, all time */
   itemsBroken: number;
-  windowsSmashed: number;
-  monitorsSmashed: number;
-  lampsBroken: number;
+  /** how often each thing was damaged (any stage) and completely destroyed */
+  damaged: Partial<Record<BreakableId, number>>;
+  destroyed: Partial<Record<BreakableId, number>>;
+  /** times the swatter hit a person */
+  peopleHit: number;
   firstPlayed: string | null;
   lastPlayed: string | null;
 }
@@ -84,9 +86,9 @@ export function emptyStats(): PlayerStats {
     totalDamage: 0,
     maxRoundDamage: 0,
     itemsBroken: 0,
-    windowsSmashed: 0,
-    monitorsSmashed: 0,
-    lampsBroken: 0,
+    damaged: {},
+    destroyed: {},
+    peopleHit: 0,
     firstPlayed: null,
     lastPlayed: null,
   };
@@ -100,6 +102,8 @@ export class StatsManager {
   constructor(private readonly key = 'stats') {
     const saved = loadJSON<Partial<PlayerStats> | null>(key, null);
     this.stats = { ...emptyStats(), ...(saved ?? {}) };
+    if (!this.stats.damaged || typeof this.stats.damaged !== 'object') this.stats.damaged = {};
+    if (!this.stats.destroyed || typeof this.stats.destroyed !== 'object') this.stats.destroyed = {};
     if (!this.stats.firstPlayed) this.stats.firstPlayed = new Date().toISOString();
   }
 
@@ -163,11 +167,13 @@ export class StatsManager {
     s.totalDamage += e.cost;
     s.itemsBroken++;
     s.maxRoundDamage = Math.max(s.maxRoundDamage, roundTotal);
-    if (e.final) {
-      if (e.id === 'window') s.windowsSmashed++;
-      if (e.id === 'monitor') s.monitorsSmashed++;
-      if (e.id === 'lamp') s.lampsBroken++;
-    }
+    s.damaged[e.id] = (s.damaged[e.id] ?? 0) + 1;
+    if (e.final) s.destroyed[e.id] = (s.destroyed[e.id] ?? 0) + 1;
+    this.touch();
+  }
+
+  recordPersonHit(): void {
+    this.stats.peopleHit++;
     this.touch();
   }
 

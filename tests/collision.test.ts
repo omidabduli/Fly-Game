@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { Scene } from '../src/environment/Scene';
 import { FlyState } from '../src/fly/Fly';
 import { Simulation } from '../src/game/Simulation';
 import { ellipse, rect, sdRoundRect, shapeOverlapsRoundRect } from '../src/physics/geometry';
 import { slabGap, SwatterPhase } from '../src/player/Swatter';
+import { testScene } from './helpers';
 
 describe('geometry', () => {
   it('rounded-rect SDF: inside negative, edges zero, corners rounded', () => {
@@ -31,18 +31,17 @@ describe('geometry', () => {
 });
 
 describe('heightfield & swatter contact', () => {
-  const scene = new Scene();
+  const scene = testScene();
 
   it('heights follow the scene layout (max rule)', () => {
     expect(scene.heightAt(345, 285)).toBe(150); // desk
-    expect(scene.heightAt(240, 280)).toBe(158); // phone lying on the desk
     expect(scene.heightAt(175, 220)).toBe(225); // cup body
     expect(scene.heightAt(60, 60)).toBe(0); // window glass
     expect(scene.heightAt(300, 100)).toBe(110); // monitor
   });
 
   it('the swatter stops at the tallest surface under its head', () => {
-    expect(scene.maxHeightInRoundRect(300, 276, 30, 36, 11).height).toBe(151); // open desk (crumbs)
+    expect(scene.maxHeightInRoundRect(300, 276, 30, 36, 11).height).toBe(150); // open desk
     // overlapping the cup -> contact on the cup
     const g = scene.maxHeightInRoundRect(170, 230, 30, 36, 11);
     expect(g.height).toBe(225);
@@ -51,7 +50,7 @@ describe('heightfield & swatter contact', () => {
 });
 
 function simWithFlyOn(x: number, y: number, seed = 1): Simulation {
-  const sim = new Simulation({ seed });
+  const sim = new Simulation({ seed, scene: testScene() });
   // no spontaneous walking/grooming/take-offs: a motionless target
   const B = sim.params.behavior;
   B.walkRate = B.groomRate = B.turnRate = B.spontaneousTakeoffRate = B.boredomTakeoffRate = B.preemptiveTakeoffRate = 0;

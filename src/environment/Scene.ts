@@ -21,6 +21,13 @@ import {
  *
  * Height rule: H(x, y) = max(top of every object containing (x, y)); the wall
  * is the base plane at 0. Ties resolve to the later object (for identity).
+ *
+ * The scene is a Mensa (university canteen): people sit behind a long table,
+ * so they are further from the viewer (lower tops) than the table and the
+ * plates and glasses on it. Everything on the table lies within ~5 mm of the
+ * tabletop (the swatter's mesh flexes that far), so glasses and plates break
+ * instead of shielding the fly. Real cover comes from the sneeze guard over
+ * the food counter and from people's heads.
  */
 
 export type Material =
@@ -36,7 +43,9 @@ export type Material =
   | 'fruit'
   | 'paper'
   | 'leaf'
-  | 'terracotta';
+  | 'terracotta'
+  | 'skin'
+  | 'cloth';
 
 export interface SurfaceDef {
   id: string;
@@ -57,64 +66,129 @@ export interface SurfaceObject extends SurfaceDef {
   area: number;
 }
 
-export const WORLD_W = 480;
-export const WORLD_H = 300;
+export const WORLD_W = 560;
+export const WORLD_H = 320;
 
-/** Framed print hanging flat on the wall (decoration only, not a surface). */
-export const POSTER_RECT = { x: 412, y: 10, w: 48, h: 36 };
+/** Back edge of the dining table: people sit behind it, their plates stand on it. */
+export const TABLE_Y = 222;
 
-/** The single polished environment: a desk against a wall, next to a window. */
-export function buildDeskLayout(): SurfaceDef[] {
+export type PersonId = 'juergen' | 'schmidt' | 'lukas' | 'mia' | 'meyer';
+
+export interface Seat {
+  id: PersonId;
+  /** centre of the head */
+  x: number;
+  y: number;
+  /** head radii */
+  rx: number;
+  ry: number;
+  /** stands behind the food counter instead of sitting at the table */
+  staff?: boolean;
+}
+
+/** The four diners across the table, and Frau Meyer behind the food counter. */
+export const SEATS: Seat[] = [
+  { id: 'juergen', x: 88, y: 116, rx: 22, ry: 27 },
+  { id: 'schmidt', x: 212, y: 116, rx: 21, ry: 26 },
+  { id: 'lukas', x: 342, y: 116, rx: 22, ry: 27 },
+  { id: 'mia', x: 470, y: 118, rx: 21, ry: 26 },
+  { id: 'meyer', x: 150, y: 66, rx: 15, ry: 18, staff: true },
+];
+
+/** Framed poster of the Bremen Town Musicians (flat on the wall, not a surface). */
+export const POSTER_RECT = { x: 252, y: 92, w: 46, h: 56 };
+
+/** Front-row diner: head and shoulders, both surfaces the fly can sit on. */
+function person(s: Seat, bald = false): SurfaceDef[] {
+  return [
+    { id: `${s.id}-body`, label: s.id, material: 'cloth', shape: rect(s.x - 46, s.y + 22, 92, TABLE_Y - s.y - 20, 16), top: 24, landable: true, attract: 0.22 },
+    { id: `${s.id}-head`, label: s.id, material: 'skin', shape: ellipse(s.x, s.y, s.rx, s.ry), top: 26, landable: true, attract: bald ? 0.6 : 0.3, bright: bald },
+  ];
+}
+
+/** Drinking glass standing on the table: body, rim (sticky, flies love it) and the drink. */
+function glass(id: string, label: string, x: number, y: number, w: number, h: number, top: number): SurfaceDef[] {
+  return [
+    { id: `${id}-body`, label, material: 'glass', shape: rect(x, y, w, h, 4), top, landable: true, attract: 0.25 },
+    { id: `${id}-rim`, label, material: 'glass', shape: ellipse(x + w / 2, y, w / 2, 3), top: top + 0.7, landable: true, attract: 0.7, food: true },
+    { id, label, material: 'coffee', shape: ellipse(x + w / 2, y, w / 2 - 2, 2), top: top + 0.7, landable: false, attract: 0 },
+  ];
+}
+
+/**
+ * Lunchtime in the Mensa: a long table seen from across it, four people eating,
+ * the food counter with Frau Meyer, the menu screen and a rainy Bremen outside.
+ */
+export function buildMensaLayout(): SurfaceDef[] {
+  const [juergen, schmidt, lukas, mia, meyer] = SEATS;
   return [
     { id: 'wall', label: 'wall', material: 'wall', shape: rect(0, 0, WORLD_W, WORLD_H), top: 0, landable: true, attract: 0.3 },
 
-    // --- window (glass flush with the wall plane, painted frame proud of it) ---
-    { id: 'window-glass', label: 'window', material: 'glass', shape: rect(34, 30, 132, 110), top: 0, landable: true, attract: 0.6, bright: true },
-    { id: 'window-frame-top', label: 'window frame', material: 'paint', shape: rect(24, 20, 152, 10), top: 4, landable: true, attract: 0.3 },
-    { id: 'window-frame-bottom', label: 'window frame', material: 'paint', shape: rect(24, 140, 152, 10), top: 4, landable: true, attract: 0.3 },
-    { id: 'window-frame-left', label: 'window frame', material: 'paint', shape: rect(24, 20, 10, 130), top: 4, landable: true, attract: 0.3 },
-    { id: 'window-frame-right', label: 'window frame', material: 'paint', shape: rect(166, 20, 10, 130), top: 4, landable: true, attract: 0.3 },
-    { id: 'window-mullion-v', label: 'window frame', material: 'paint', shape: rect(97, 30, 6, 110), top: 4, landable: true, attract: 0.3 },
-    { id: 'window-mullion-h', label: 'window frame', material: 'paint', shape: rect(34, 82, 132, 6), top: 4, landable: true, attract: 0.3 },
-    { id: 'window-sill', label: 'window sill', material: 'paint', shape: rect(14, 150, 172, 12, 2), top: 40, landable: true, attract: 0.5 },
+    // --- window facade (glass flush with the wall, frame proud of it) ---
+    { id: 'window-glass', label: 'window', material: 'glass', shape: rect(372, 12, 176, 108), top: 0, landable: true, attract: 0.6, bright: true },
+    { id: 'window-frame-top', label: 'window frame', material: 'paint', shape: rect(366, 6, 188, 6), top: 3, landable: true, attract: 0.3 },
+    { id: 'window-frame-bottom', label: 'window frame', material: 'paint', shape: rect(366, 120, 188, 6), top: 3, landable: true, attract: 0.3 },
+    { id: 'window-frame-left', label: 'window frame', material: 'paint', shape: rect(366, 6, 6, 120), top: 3, landable: true, attract: 0.3 },
+    { id: 'window-frame-right', label: 'window frame', material: 'paint', shape: rect(548, 6, 6, 120), top: 3, landable: true, attract: 0.3 },
+    { id: 'window-mullion-1', label: 'window frame', material: 'paint', shape: rect(429, 12, 5, 108), top: 3, landable: true, attract: 0.3 },
+    { id: 'window-mullion-2', label: 'window frame', material: 'paint', shape: rect(488, 12, 5, 108), top: 3, landable: true, attract: 0.3 },
+    { id: 'window-mullion-h', label: 'window frame', material: 'paint', shape: rect(372, 64, 176, 4), top: 3, landable: true, attract: 0.3 },
 
-    // --- potted plant on the sill ---
-    { id: 'plant-pot', label: 'plant pot', material: 'terracotta', shape: rect(128, 118, 30, 32, 3), top: 70, landable: true, attract: 0.3 },
-    { id: 'plant-leaves', label: 'plant', material: 'leaf', shape: ellipse(143, 104, 23, 17), top: 76, landable: true, attract: 0.6 },
+    // --- wall: menu screen, clock ---
+    { id: 'menu-screen', label: 'menu screen', material: 'screen', shape: rect(214, 12, 140, 70, 3), top: 4, landable: true, attract: 0.5, bright: true },
+    { id: 'clock', label: 'clock', material: 'glass', shape: ellipse(36, 50, 16, 16), top: 3, landable: true, attract: 0.3 },
 
-    // --- monitor ---
-    { id: 'monitor-bezel', label: 'monitor', material: 'plastic', shape: rect(204, 34, 188, 128, 4), top: 110, landable: true, attract: 0.35 },
-    { id: 'monitor-screen', label: 'monitor screen', material: 'screen', shape: rect(211, 41, 174, 109, 2), top: 110, landable: true, attract: 0.5, bright: true },
-    { id: 'monitor-neck', label: 'monitor stand', material: 'metal', shape: rect(287, 162, 22, 34), top: 100, landable: true, attract: 0.15 },
+    // --- food counter: Frau Meyer behind the sneeze guard ---
+    { id: 'meyer-body', label: 'meyer', material: 'cloth', shape: rect(meyer.x - 26, meyer.y + 14, 52, 40, 10), top: 8, landable: true, attract: 0.2 },
+    { id: 'meyer-head', label: 'meyer', material: 'skin', shape: ellipse(meyer.x, meyer.y, meyer.rx, meyer.ry), top: 9, landable: true, attract: 0.3 },
+    { id: 'counter', label: 'food counter', material: 'metal', shape: rect(0, 120, 205, 70, 2), top: 12, landable: true, attract: 0.35 },
+    { id: 'counter-food', label: 'food counter', material: 'metal', shape: rect(6, 106, 192, 14, 1), top: 13, landable: true, attract: 0.9, food: true },
+    { id: 'sneeze-guard', label: 'sneeze guard', material: 'glass', shape: rect(4, 94, 198, 12, 2), top: 20, landable: true, attract: 0.3 },
 
-    // --- desk ---
-    { id: 'desk', label: 'desk', material: 'wood', shape: rect(0, 190, WORLD_W, WORLD_H - 190), top: 150, landable: true, attract: 0.42 },
-    { id: 'crumbs', label: 'cookie crumbs', material: 'fruit', shape: ellipse(300, 262, 11, 4), top: 151, landable: true, attract: 0.75, food: true },
-    { id: 'monitor-base', label: 'monitor stand', material: 'metal', shape: ellipse(298, 200, 40, 8), top: 160, landable: true, attract: 0.2 },
+    // --- a big ficus in the corner ---
+    { id: 'plant-pot', label: 'plant pot', material: 'terracotta', shape: rect(522, 150, 32, 44, 3), top: 14, landable: true, attract: 0.3 },
+    { id: 'plant-leaves', label: 'plant', material: 'leaf', shape: ellipse(538, 128, 22, 28), top: 16, landable: true, attract: 0.55 },
 
-    // --- desk lamp ---
-    { id: 'lamp-base', label: 'lamp', material: 'metal', shape: ellipse(440, 213, 26, 7), top: 168, landable: true, attract: 0.2 },
-    { id: 'lamp-arm-lower', label: 'lamp arm', material: 'metal', shape: poly([[435, 209], [441, 209], [455, 134], [449, 132]]), top: 165, landable: true, attract: 0.1 },
-    { id: 'lamp-arm-upper', label: 'lamp arm', material: 'metal', shape: poly([[449, 131], [455, 136], [424, 86], [419, 90]]), top: 165, landable: true, attract: 0.1 },
-    { id: 'lamp-shade', label: 'lamp shade', material: 'metal', shape: poly([[398, 58], [446, 58], [462, 104], [382, 104]]), top: 175, landable: true, attract: 0.55, bright: true },
+    // --- the diners ---
+    ...person(juergen, true),
+    ...person(schmidt),
+    ...person(lukas),
+    ...person(mia),
 
-    // --- books ---
-    { id: 'book-bottom', label: 'books', material: 'paper', shape: rect(384, 250, 84, 32, 2), top: 180, landable: true, attract: 0.3 },
-    { id: 'book-top', label: 'books', material: 'paper', shape: rect(392, 228, 70, 23, 2), top: 184, landable: true, attract: 0.3 },
+    // --- the long Mensa table ---
+    { id: 'table', label: 'table', material: 'wood', shape: rect(0, TABLE_Y, WORLD_W, WORLD_H - TABLE_Y), top: 28, landable: true, attract: 0.4 },
 
-    // --- phone lying on the desk ---
-    { id: 'phone', label: 'phone', material: 'screen', shape: rect(224, 226, 36, 68, 5), top: 158, landable: true, attract: 0.45, bright: true },
+    // Jürgen: Currywurst mit Pommes and a Spezi
+    { id: 'tray-juergen', label: 'tray', material: 'plastic', shape: rect(juergen.x - 50, 236, 100, 54, 4), top: 29.5, landable: true, attract: 0.35 },
+    { id: 'plate-juergen', label: 'plate', material: 'ceramic', shape: ellipse(juergen.x - 8, 265, 36, 16), top: 30.5, landable: true, attract: 0.45 },
+    { id: 'currywurst', label: 'Currywurst', material: 'fruit', shape: ellipse(juergen.x - 17, 262, 17, 5.5), top: 32, landable: true, attract: 1, food: true },
+    { id: 'fries', label: 'fries', material: 'fruit', shape: ellipse(juergen.x + 9, 267, 14, 8), top: 31.8, landable: true, attract: 0.95, food: true },
+    ...glass('spezi', 'Spezi', juergen.x + 30, 216, 18, 38, 32.5),
 
-    // --- plate with fruit (fruit flies!) ---
-    { id: 'plate', label: 'plate', material: 'ceramic', shape: ellipse(78, 262, 62, 18), top: 156, landable: true, attract: 0.5 },
-    { id: 'fruit-apple', label: 'apple slice', material: 'fruit', shape: ellipse(64, 257, 19, 8), top: 172, landable: true, attract: 1.0, food: true },
-    { id: 'fruit-banana', label: 'banana', material: 'fruit', shape: ellipse(98, 265, 13, 6), top: 168, landable: true, attract: 0.95, food: true },
+    // Frau Dr. Schmidt: coffee, Käsekuchen and exams to mark
+    { id: 'tray-schmidt', label: 'tray', material: 'plastic', shape: rect(schmidt.x - 50, 236, 100, 54, 4), top: 29.5, landable: true, attract: 0.35 },
+    { id: 'exams', label: 'exams', material: 'paper', shape: rect(schmidt.x - 46, 242, 34, 44, 1), top: 29.5, landable: true, attract: 0.35 },
+    { id: 'plate-schmidt', label: 'plate', material: 'ceramic', shape: ellipse(schmidt.x + 2, 270, 24, 11), top: 30.5, landable: true, attract: 0.45 },
+    { id: 'cake', label: 'cheesecake', material: 'fruit', shape: poly([[schmidt.x - 12, 272], [schmidt.x + 14, 264], [schmidt.x + 12, 274], [schmidt.x - 8, 278]]), top: 32, landable: true, attract: 1, food: true },
+    { id: 'cup-handle', label: 'coffee cup', material: 'ceramic', shape: rect(schmidt.x + 48, 232, 9, 16, 4), top: 32, landable: true, attract: 0.25 },
+    { id: 'cup-body', label: 'coffee cup', material: 'ceramic', shape: rect(schmidt.x + 22, 226, 26, 30, 4), top: 32.5, landable: true, attract: 0.45 },
+    { id: 'cup-rim', label: 'coffee cup', material: 'ceramic', shape: ellipse(schmidt.x + 35, 226, 13, 3.5), top: 33.2, landable: true, attract: 0.75, food: true },
+    { id: 'coffee', label: 'coffee', material: 'coffee', shape: ellipse(schmidt.x + 35, 226, 11, 2.6), top: 33.2, landable: false, attract: 0 },
 
-    // --- coffee cup ---
-    { id: 'cup-body', label: 'coffee cup', material: 'ceramic', shape: rect(150, 182, 50, 62, 5), top: 225, landable: true, attract: 0.45 },
-    { id: 'cup-handle', label: 'cup handle', material: 'ceramic', shape: rect(200, 194, 15, 34, 7), top: 222, landable: true, attract: 0.25 },
-    { id: 'cup-rim', label: 'cup rim', material: 'ceramic', shape: ellipse(175, 182, 25, 6), top: 228, landable: true, attract: 0.75, food: true },
-    { id: 'coffee', label: 'coffee cup', material: 'coffee', shape: ellipse(175, 182, 21, 4.3), top: 228, landable: false, attract: 0 },
+    // Lukas: laptop, Mate and a Brezel
+    { id: 'napkin', label: 'napkin', material: 'paper', shape: rect(lukas.x - 68, 258, 30, 26, 1), top: 28.5, landable: true, attract: 0.3 },
+    { id: 'brezel', label: 'Brezel', material: 'fruit', shape: ellipse(lukas.x - 53, 270, 13, 9), top: 31.5, landable: true, attract: 0.9, food: true },
+    { id: 'laptop-keys', label: 'laptop', material: 'plastic', shape: rect(lukas.x - 34, 262, 68, 26, 3), top: 30, landable: true, attract: 0.3 },
+    { id: 'laptop-lid', label: 'laptop', material: 'plastic', shape: rect(lukas.x - 34, 204, 68, 58, 3), top: 32, landable: true, attract: 0.4, bright: true },
+    { id: 'mate-body', label: 'Mate bottle', material: 'glass', shape: rect(lukas.x + 42, 204, 14, 52, 5), top: 32.8, landable: true, attract: 0.3 },
+    { id: 'mate-cap', label: 'Mate bottle', material: 'metal', shape: ellipse(lukas.x + 49, 204, 5, 2.5), top: 33.4, landable: true, attract: 0.6, food: true },
+
+    // Mia: salad, Apfelschorle and her phone
+    { id: 'tray-mia', label: 'tray', material: 'plastic', shape: rect(mia.x - 50, 236, 100, 54, 4), top: 29.5, landable: true, attract: 0.35 },
+    { id: 'bowl', label: 'salad bowl', material: 'ceramic', shape: ellipse(mia.x - 10, 265, 32, 15), top: 31, landable: true, attract: 0.5 },
+    { id: 'salad', label: 'salad', material: 'leaf', shape: ellipse(mia.x - 10, 261, 25, 8), top: 32.5, landable: true, attract: 0.85, food: true },
+    ...glass('schorle', 'Apfelschorle', mia.x + 24, 218, 16, 36, 32.5),
+    { id: 'phone', label: 'phone', material: 'screen', shape: rect(mia.x + 56, 244, 22, 42, 4), top: 29.5, landable: true, attract: 0.45, bright: true },
   ];
 }
 
@@ -135,7 +209,7 @@ export class Scene {
   private readonly rows: number;
   private readonly cells: number[][];
 
-  constructor(defs: SurfaceDef[] = buildDeskLayout()) {
+  constructor(defs: SurfaceDef[] = buildMensaLayout()) {
     this.objects = defs.map((d, index) => ({ ...d, index, bounds: shapeBounds(d.shape), area: shapeArea(d.shape) }));
     this.base = this.objects[0];
     this.byTopDesc = this.objects.slice(1).sort((a, b) => b.top - a.top || b.index - a.index);

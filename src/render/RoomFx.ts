@@ -16,15 +16,16 @@ interface Notice {
 }
 
 const MESSAGES: { min: number; app: string; from: string; text: string }[] = [
-  { min: 1, app: '💬', from: 'Mom', text: 'What was that noise?!' },
-  { min: 1, app: '💬', from: 'Neighbour', text: 'Everything ok in there??' },
-  { min: 1, app: '🏠', from: 'Landlord', text: 'Reminder: no damage to the flat 🙂' },
-  { min: 1, app: '💬', from: 'Sam', text: 'bro why are you yelling at a fly' },
-  { min: 150, app: '💳', from: 'Bank', text: 'Card used at: Hardware Store' },
-  { min: 150, app: '💬', from: 'Mom', text: 'Are you breaking things again?' },
-  { min: 400, app: '🛡️', from: 'Insurance', text: 'Claim #4471 received. Again.' },
-  { min: 400, app: '💬', from: 'Mom', text: "I'm coming home. NOW." },
-  { min: 900, app: '📰', from: 'News', text: 'Local man loses war against fruit fly' },
+  { min: 0, app: '💬', from: 'Mama', text: 'Isst du auch genug, Schatz?' },
+  { min: 0, app: '👥', from: 'WG-Gruppe', text: 'Wer hat meinen Joghurt gegessen?!' },
+  { min: 0, app: '💳', from: 'Mensakarte', text: 'Guthaben: 0,40 €' },
+  { min: 1, app: '💬', from: 'Mama', text: 'Was ist das für ein Lärm?!' },
+  { min: 1, app: '💬', from: 'Oma', text: 'Kind, haust du wieder Fliegen?' },
+  { min: 150, app: '🏦', from: 'Bank', text: 'Kartenzahlung: Baumarkt 89,99 €' },
+  { min: 150, app: '👥', from: 'WG-Gruppe', text: 'Bist du das in der Mensa-Story?? 😂' },
+  { min: 400, app: '🛡️', from: 'Versicherung', text: 'Schadensmeldung erhalten. Schon wieder.' },
+  { min: 400, app: '🧹', from: 'Hausmeister', text: 'WER WAR DAS?!' },
+  { min: 900, app: '📰', from: 'Eilmeldung', text: 'Chaos in der Uni-Mensa: Fliege überlebt' },
 ];
 
 /** Screen-space speech bubble with a tail pointing down at (x, y). */
@@ -73,17 +74,17 @@ export function drawBubble(ctx: Ctx, x: number, y: number, lines: [string, strin
 }
 
 /**
- * Things in the room that keep reacting after they broke: a flickering lamp,
- * a glitching monitor, sparks, and a phone that lights up with messages
+ * Things in the Mensa that keep reacting after they broke: the glitching menu
+ * screen, sparking electronics, and Mia's phone lighting up with messages
  * about all the noise you're making.
  */
 export class RoomFx {
-  private lampFlicker = 0;
-  private lampNext = 1.5;
   private glitchT = 0;
   private glitchNext = 2;
   private glitchSeed = 1;
   private sparkNext = 3;
+  /** a message now and then even when nothing broke */
+  private quietNotice = 18;
   private notice: Notice | null = null;
   private noticeAt = -1;
   private noticeCooldown = 0;
@@ -99,7 +100,6 @@ export class RoomFx {
     this.noticeAt = -1;
     this.noticeCooldown = 0;
     this.shown.clear();
-    this.lampFlicker = 0;
     this.glitchT = 0;
   }
 
@@ -109,40 +109,34 @@ export class RoomFx {
   }
 
   update(dt: number, damage: DamageSystem, effects: Effects): void {
-    // lamp: dented shade flickers now and then; a smashed bulb sputters
-    const lamp = damage.stage('lamp');
-    if (lamp === 1) {
-      this.lampNext -= dt;
-      if (this.lampNext <= 0) {
-        this.lampFlicker = 0.25 + Math.random() * 0.5;
-        this.lampNext = 1.5 + Math.random() * 4;
-      }
-    }
-    this.lampFlicker = Math.max(0, this.lampFlicker - dt);
-    // monitor / phone glitches and sparks
-    const mon = damage.stage('monitor');
+    // the menu screen glitches once it's cracked
+    const menu = damage.stage('menu');
     this.glitchNext -= dt;
-    if (mon > 0 && this.glitchNext <= 0) {
-      this.glitchT = 0.08 + Math.random() * (mon > 1 ? 0.3 : 0.15);
+    if (menu > 0 && this.glitchNext <= 0) {
+      this.glitchT = 0.08 + Math.random() * (menu > 1 ? 0.3 : 0.15);
       this.glitchSeed = (Math.random() * 1e9) | 0;
-      this.glitchNext = (mon > 1 ? 0.6 : 1.8) + Math.random() * 3;
+      this.glitchNext = (menu > 1 ? 0.6 : 1.8) + Math.random() * 3;
     }
     this.glitchT = Math.max(0, this.glitchT - dt);
+    // broken electronics spark now and then
     this.sparkNext -= dt;
     if (this.sparkNext <= 0) {
       this.sparkNext = 2.5 + Math.random() * 5;
       const spots: [number, number][] = [];
-      if (lamp >= 2) spots.push([422, 106]);
-      if (mon >= 2) for (const m of damage.state.monitor.marks) spots.push([m.x, m.y]);
-      if (damage.stage('phone') >= 2) for (const m of damage.state.phone.marks) spots.push([m.x, m.y]);
+      for (const id of ['menu', 'laptop', 'phone'] as const) if (damage.stage(id) >= 2) for (const m of damage.state[id].marks) spots.push([m.x, m.y]);
       if (spots.length) {
         const [x, y] = spots[Math.floor(Math.random() * spots.length)];
         effects.sparks(x, y, 5 + Math.floor(Math.random() * 6));
         this.onSpark?.();
       }
     }
-    // phone notifications
+    // Mia's phone gets messages about all the noise (and some anyway)
     this.noticeCooldown = Math.max(0, this.noticeCooldown - dt);
+    this.quietNotice -= dt;
+    if (this.quietNotice <= 0 && this.noticeAt < 0 && !this.notice && this.noticeCooldown <= 0) {
+      this.quietNotice = 25 + Math.random() * 25;
+      this.noticeAt = 0.1;
+    }
     if (this.noticeAt >= 0) {
       this.noticeAt -= dt;
       if (this.noticeAt < 0 && damage.stage('phone') < 2) this.pushNotice(damage.total);
@@ -154,7 +148,7 @@ export class RoomFx {
   }
 
   private pushNotice(total: number): void {
-    const options = MESSAGES.map((m, i) => ({ m, i })).filter(({ m, i }) => total >= m.min && !this.shown.has(i));
+    const options = MESSAGES.map((m, i) => ({ m, i })).filter(({ m, i }) => total >= m.min && !this.shown.has(i) && (m.min > 0) === total > 0);
     if (!options.length) return;
     // prefer the most dramatic message the damage allows
     const top = Math.max(...options.map((o) => o.m.min));
@@ -166,32 +160,24 @@ export class RoomFx {
     this.onNotice?.();
   }
 
-  /** World-space overlays (context has the world transform). */
-  draw(ctx: Ctx, damage: DamageSystem, time: number): void {
-    // flickering lamp: dim the light it throws
-    if (this.lampFlicker > 0) {
-      const dim = Math.sin(time * 90) > 0.2 || Math.random() < 0.3 ? 0.85 : 0.25;
-      for (const [x, y, r] of [[420, 140, 150], [410, 212, 140], [422, 110, 60]] as const) {
-        const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-        g.addColorStop(0, `rgba(30,20,5,${0.2 * dim})`);
-        g.addColorStop(1, 'rgba(30,20,5,0)');
-        ctx.fillStyle = g;
-        ctx.fillRect(x - r, y - r, 2 * r, 2 * r);
-      }
-    }
-    // monitor glitch bars
+  /** World-space overlays on the back layer (context has the world transform). */
+  draw(ctx: Ctx): void {
+    // menu screen glitch bars
     if (this.glitchT > 0) {
-      const scr = this.scene.byId('monitor-screen')!.bounds;
+      const scr = this.scene.byId('menu-screen')!.bounds;
       let s = this.glitchSeed;
       const rnd = () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296);
       const cols = ['255,43,214', '43,255,136', '53,200,255', '255,255,255', '0,0,0'];
       for (let i = 0; i < 7; i++) {
-        const y = scr.minY + rnd() * (scr.maxY - scr.minY - 4);
+        const y = scr.minY + 3 + rnd() * (scr.maxY - scr.minY - 10);
         ctx.fillStyle = `rgba(${cols[Math.floor(rnd() * cols.length)]},${0.35 + rnd() * 0.4})`;
-        ctx.fillRect(scr.minX + rnd() * 20, y, (scr.maxX - scr.minX) * (0.3 + rnd() * 0.7), 0.8 + rnd() * 5);
+        ctx.fillRect(scr.minX + 3 + rnd() * 20, y, (scr.maxX - scr.minX - 6) * (0.3 + rnd() * 0.6), 0.8 + rnd() * 4);
       }
     }
-    // phone lights up while a message is showing
+  }
+
+  /** Overlays on the table layer: the phone lighting up. */
+  drawFront(ctx: Ctx, damage: DamageSystem): void {
     if (this.notice && damage.stage('phone') < 2) {
       const p = this.scene.byId('phone')!.bounds;
       const u = this.notice.t / this.notice.life;
@@ -202,12 +188,12 @@ export class RoomFx {
       ctx.fill();
       ctx.fillStyle = `rgba(250,250,250,${0.85 * a})`;
       ctx.beginPath();
-      ctx.roundRect(p.minX + 3, p.minY + 24, p.maxX - p.minX - 6, 9, 2);
+      ctx.roundRect(p.minX + 2.5, p.minY + 15, p.maxX - p.minX - 5, 7, 1.5);
       ctx.fill();
       ctx.fillStyle = `rgba(60,60,70,${0.7 * a})`;
-      ctx.fillRect(p.minX + 5, p.minY + 26.2, 12, 1.2);
-      ctx.fillRect(p.minX + 5, p.minY + 29, 20, 1);
-      // buzzing on the desk
+      ctx.fillRect(p.minX + 4, p.minY + 16.8, 8, 1);
+      ctx.fillRect(p.minX + 4, p.minY + 19, 13, 0.8);
+      // buzzing on the table
       const g = ctx.createRadialGradient((p.minX + p.maxX) / 2, (p.minY + p.maxY) / 2, 10, (p.minX + p.maxX) / 2, (p.minY + p.maxY) / 2, 55);
       g.addColorStop(0, `rgba(255,255,255,${0.12 * a})`);
       g.addColorStop(1, 'rgba(255,255,255,0)');

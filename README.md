@@ -19,32 +19,55 @@ Pick one on the title screen (or in the menu, which brings in a new fly):
 
 | Mode | Fly | Synthetic attackers catch it |
 |---|---|---|
-| 🐌 Easy | Sleepy fly: slower reflexes, weaker jumps, lands close by | ~42% of serious attacks |
-| 🪰 Medium | Alert fly: quick, but makes mistakes | ~13% |
-| 🥷 Hard | Ninja fly: the full escape reflex, with adaptive difficulty | ~1.4% |
+| 🐌 Easy | Sleepy fly: slower reflexes, weaker jumps, lands close by | ~41% of serious attacks |
+| 🪰 Medium | Alert fly: quick, but makes mistakes | ~12% |
+| 🥷 Hard | Ninja fly: the full escape reflex, with adaptive difficulty | ~1% |
 
 It's the same fly brain in every mode. Easy and Medium only scale its reaction delays, looming
 thresholds, take-off strength and prediction noise ([`src/game/DifficultyModes.ts`](src/game/DifficultyModes.ts)).
 Only Hard uses the adaptive controller. Real players on a phone aim less precisely than the
 synthetic attackers, so expect lower rates.
 
+## The Mensa
+
+The game is set at lunchtime in a university Mensa in Bremen. Across the table sit Jürgen
+(Currywurst, Werder scarf, bald), Frau Dr. Schmidt (coffee, cheesecake, a stack of exams to mark),
+Lukas (laptop, Mate, Brezel, exam tomorrow) and Mia (salad, Apfelschorle, yellow Friesennerz), and
+Frau Meyer runs the food counter.
+
+The people are more than decoration:
+
+- their eyes follow the fly and the swatter
+- they complain when you swing near them, and say "AUA!" when you hit them
+- they wave the fly off their food after a few seconds, so it won't sit still for long (except
+  Mia, who likes the fly)
+- they chat with each other, and cheer when you finally get the fly (Mia mourns it)
+
+Mia's phone lights up with messages, and they get more worried the more damage you cause.
+All the dialogue is in German. The logic is in [`src/game/People.ts`](src/game/People.ts) and the
+drawing is in [`src/render/PeopleRenderer.ts`](src/render/PeopleRenderer.ts).
+
 ## The damage bill
 
-The swatter breaks whatever it lands on: the window, the monitor, the phone, the lamp, the plant,
-the coffee mug, the plate, the fruit, the books, the cookie crumbs and the framed print on the wall.
-Most things break in stages (cracked → smashed), each with a repair cost. The HUD shows the running
-total, and when you finally catch the fly you get an itemised bill instead of the survival time, with
-a rank from *Surgical* ($0) to *Demolition*. The room is repaired for every new fly.
+The swatter breaks whatever it lands on: plates, glasses, the Mate bottle, Lukas's laptop, Mia's
+phone, the menu screen, the sneeze guard, the window, the clock, the ficus and the Bremen Town
+Musicians poster. Most things break in stages, each with a price in euros, and hitting a person
+costs *Schmerzensgeld*. The HUD shows the running total. When you catch the fly you get an
+itemised German receipt instead of the survival time, stamped from *SAUBER* (0 €) to
+*TOTALSCHADEN*. Everything is cleaned up for the next fly.
 
-Breaking things is purely cosmetic for the simulation: the physics and the fly's behaviour don't
-change. It's tracked in [`src/game/DamageSystem.ts`](src/game/DamageSystem.ts) and drawn into the
-pre-rendered room by [`SceneRenderer`](src/render/SceneRenderer.ts).
+Breaking things is purely cosmetic for the simulation. Everything on the table stays within a few
+millimetres of the tabletop, so plates and glasses break instead of shielding the fly. Real cover
+only comes from the sneeze guard over the food counter and from people's heads. Damage is tracked in
+[`src/game/DamageSystem.ts`](src/game/DamageSystem.ts) and painted by
+[`SceneRenderer`](src/render/SceneRenderer.ts).
 
 ## Controls
 
 - **Mouse:** move to aim, click to swat. Arrow keys / WASD and Space work too.
 - **Touch:** drag to aim, tap to swat. The swatter hits wherever you tap.
 - The dashed outline shows where the swatter will land.
+- After a close call a replay button appears in the top bar.
 - On phones the game vibrates on hits and breaks (Android, and iPhone with iOS 18 or later).
   It can be turned off in the menu.
 - Keys: `B` brain view, `L` lab mode, `R` replay the last close call, `M` mute,
@@ -76,7 +99,7 @@ with the Web Audio API, so they follow the ring/silent switch: flip it off silen
 4. It predicts where the swatter will be, tries a bunch of take-off directions with its own flight
    model and picks the best one. Now and then it picks something unexpected, and very rarely it
    messes up.
-5. After escaping it flies around, picks a spot to land (fruit, the cup rim, the window, ...) and
+5. After escaping it flies around, picks a spot to land (the Currywurst, a glass rim, a bald head, ...) and
    goes back to walking and cleaning itself.
 
 Physics runs at a fixed 1000 steps per second, independent of the frame rate. Hits are checked
@@ -90,15 +113,14 @@ lists them with references.
 ## Benchmark
 
 `npm run benchmark` runs 10,000 simulated attacks. The simulated attackers only use the controls a
-player has (move the aim point, press swat). Results with the current parameters:
-
-These numbers are for Hard (the unmodified fly).
+player has (move the aim point, press swat). Results with the current parameters, in the Mensa, for
+Hard (the unmodified fly):
 
 | | |
 |---|---|
 | Fly escapes | 98.8% |
-| Hits | 1.2% (65 of 5,520 serious attacks) |
-| Near misses (under 20 mm) | 28% |
+| Hits | 1.2% (92 of 7,613 serious attacks) |
+| Near misses (under 20 mm) | 29% |
 | Average miss distance | 26 mm |
 | Average reaction time | 30 ms |
 

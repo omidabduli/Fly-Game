@@ -209,6 +209,29 @@ code {
   background: rgba(40, 46, 58, 0.9);
 }
 
+.icon-btn[hidden] {
+  display: none;
+}
+
+.replay-btn {
+  color: var(--amber);
+  border-color: rgba(255, 180, 84, 0.45);
+}
+
+.replay-btn.pulse {
+  animation: pulse 1.2s ease 2;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 180, 84, 0);
+  }
+  40% {
+    box-shadow: 0 0 0 6px rgba(255, 180, 84, 0.45);
+  }
+}
+
 .icon-btn.on {
   color: var(--accent-ink);
   background: var(--accent);
@@ -1075,7 +1098,7 @@ code {
   gap: 12px;
   padding: 3px 0;
   animation: line-in 0.3s ease both;
-  animation-delay: calc(0.45s + var(--i) * 0.13s);
+  animation-delay: calc(0.45s + min(var(--i), 12) * 0.09s);
 }
 
 .receipt-lines li span:last-child {
@@ -1112,6 +1135,14 @@ code {
 #receipt-total {
   font-variant-numeric: tabular-nums;
   color: #b3261e;
+}
+
+.receipt-foot {
+  margin-top: 6px;
+  font-size: 0.66rem;
+  font-weight: 500;
+  text-align: center;
+  color: rgba(43, 38, 32, 0.6);
 }
 
 #receipt-total.zero {

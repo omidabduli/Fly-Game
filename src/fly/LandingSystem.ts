@@ -35,7 +35,7 @@ export interface LandingContext {
 
 /**
  * Chooses where to land. Each surface has a base attractiveness (fruit, sugar
- * on the cup rim, bright window, warm lamp shade ...). Candidate points are
+ * on a glass rim, a bright window, a shiny bald head ...). Candidate points are
  * scored by attractiveness * preferred distance * safety * shelter and one is
  * sampled with a softmax, so the fly sometimes lands right next to the player,
  * sometimes far away, and when it's scared it likes sheltered spots where
@@ -77,8 +77,10 @@ export class LandingSystem {
         return { x: p.x, y: p.y, z: o.top, object: o, score: 1, shelter: this.scene.shelterAt(p.x, p.y), distance: 0 };
       }
     }
-    const desk = this.scene.byId('desk') ?? this.scene.base;
-    return { x: 240, y: 250, z: desk.top, object: desk, score: 1, shelter: 0, distance: 0 };
+    // fall back to the middle of the front edge of the table (or the wall)
+    const table = this.scene.byId('table') ?? this.scene.base;
+    const b = table.bounds;
+    return { x: (b.minX + b.maxX) / 2, y: b.maxY - 10, z: table.top, object: table, score: 1, shelter: 0, distance: 0 };
   }
 
   choose(c: LandingContext, rng: Rng): LandingSite {

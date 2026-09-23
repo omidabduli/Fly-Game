@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_PARAMS } from '../src/config/params';
-import { Scene } from '../src/environment/Scene';
 import { EscapePlanner, type PlannerInput, solveReachTime } from '../src/fly/EscapePlanner';
 import { EscapeModel } from '../src/fly/flightModel';
 import { Rng } from '../src/math/rng';
 import { vec3 } from '../src/math/vec';
-import { percept } from './helpers';
+import { percept, testScene } from './helpers';
 
-const scene = new Scene();
+const scene = testScene();
 const P = DEFAULT_PARAMS;
 
 function input(over: Partial<PlannerInput> = {}): PlannerInput {

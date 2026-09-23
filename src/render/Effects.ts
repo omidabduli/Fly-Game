@@ -65,7 +65,7 @@ const pick = <T,>(a: T[]): T => a[Math.floor(Math.random() * a.length)];
 
 /**
  * Short-lived effects: impact rings, debris, sparks, comic words, money
- * labels, camera shake, screen flash and the steam over the coffee.
+ * labels, camera shake, screen flash and steam from the coffee and the food counter.
  */
 export class Effects {
   private rings: Ring[] = [];
@@ -139,11 +139,6 @@ export class Effects {
       case 'metal':
         spray(14, 'spark', ['255,230,150', '255,255,220'], [160, 360], [0.15, 0.35], [1.5, 3], 200, 3, 30);
         break;
-      case 'bulb':
-        spray(18, 'shard', ['250,250,240', '255,244,210'], [80, 240], [0.5, 1.1], [0.8, 2], 520);
-        spray(26, 'spark', ['255,226,120', '255,255,230', '255,180,80'], [200, 460], [0.2, 0.6], [1.5, 3.5], 300, 3, 40);
-        this.rings.push({ x, y, hx: 30, hy: 30, r: 0, t: 0, life: 0.5, color: '255,220,120', circle: true });
-        break;
       case 'leaves':
         spray(14, 'leaf', ['63,125,60', '79,154,71', '98,177,85'], [40, 140], [1.1, 1.9], [2.2, 3.6], 110, 2.2, 60);
         break;
@@ -158,20 +153,27 @@ export class Effects {
       case 'liquid':
         spray(30, 'drop', ['92,52,24', '120,72,36', '70,38,16'], [70, 260], [0.5, 0.9], [0.8, 2], 620, 1.5, 120);
         break;
-      case 'fruit':
-        spray(24, 'drop', ['245,225,140', '250,236,160', '236,214,150'], [60, 220], [0.5, 0.9], [0.8, 1.8], 620, 1.5, 100);
-        spray(8, 'chunk', ['184,50,42', '217,184,74'], [60, 160], [0.5, 0.9], [1, 2], 560);
-        break;
       case 'paper':
         spray(9, 'paper', ['246,241,228', '255,255,255', '235,228,210'], [40, 130], [1.3, 2.2], [2.5, 4], 90, 2, 60);
         break;
       case 'crumbs':
         spray(20, 'dot', ['217,165,92', '183,122,56'], [50, 170], [0.5, 0.9], [0.5, 1.2], 600, 2, 70);
+        spray(8, 'chunk', ['240,195,90', '226,170,66'], [60, 180], [0.6, 1], [1.2, 2.4], 560);
+        break;
+      case 'food':
+        // Currywurst sauce and bits
+        spray(26, 'drop', ['178,48,24', '200,70,30', '140,40,20'], [60, 240], [0.5, 0.9], [0.8, 2], 620, 1.5, 110);
+        spray(8, 'chunk', ['156,90,50', '217,161,122', '244,225,166'], [60, 170], [0.5, 0.9], [1, 2.2], 560);
+        break;
+      case 'person':
+        // bonk: stars and a puff
+        spray(10, 'spark', ['255,216,74', '255,255,255'], [120, 260], [0.25, 0.5], [1.5, 3], 0, 4, 0);
+        this.rings.push({ x, y, hx: 16, hy: 16, r: 0, t: 0, life: 0.4, color: '255,216,74', circle: true });
         break;
     }
   }
 
-  /** A few sparks (a broken lamp or monitor sputtering). */
+  /** A few sparks (a broken laptop or screen sputtering). */
   sparks(x: number, y: number, n: number, color = '255,226,140'): void {
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2;
@@ -371,20 +373,20 @@ export class Effects {
     }
   }
 
-  /** Gentle animated steam above the coffee (`amount` 0..1). */
-  steam(ctx: Ctx, time: number, cx: number, cy: number, amount = 1): void {
+  /** Gentle animated steam (`amount` 0..1, `size` scales it for small cups and pans). */
+  steam(ctx: Ctx, time: number, cx: number, cy: number, amount = 1, size = 1): void {
     if (amount <= 0) return;
     ctx.lineCap = 'round';
     for (let i = 0; i < 3; i++) {
-      const ph = time * 0.6 + i * 2.1;
-      const base = cx - 10 + i * 10;
+      const ph = time * 0.6 + i * 2.1 + cx;
+      const base = cx + (i - 1) * 10 * size;
       ctx.strokeStyle = `rgba(255,255,255,${(0.12 + 0.06 * Math.sin(ph * 1.7)) * amount})`;
-      ctx.lineWidth = 1.6;
+      ctx.lineWidth = 1.6 * size;
       ctx.beginPath();
       ctx.moveTo(base, cy - 2);
       for (let k = 1; k <= 6; k++) {
-        const y = cy - 2 - k * 6;
-        const x = base + Math.sin(ph + k * 0.9) * (1.5 + k * 0.7);
+        const y = cy - 2 - k * 6 * size;
+        const x = base + Math.sin(ph + k * 0.9) * (1.5 + k * 0.7) * size;
         ctx.lineTo(x, y);
       }
       ctx.stroke();

@@ -52,20 +52,20 @@ export function titleHTML(stats: PlayerStats, difficulty: DifficultyId): string 
   const record =
     stats.attempts > 0
       ? `<p class="record">Your record: <b>${stats.attempts}</b> attempts · <b>${stats.catches}</b> catch${stats.catches === 1 ? '' : 'es'}${stats.totalDamage ? ` · <b>${formatMoney(stats.totalDamage)}</b> of damage` : ''}</p>`
-      : '<p class="record">A fruit fly is somewhere in this room.</p>';
+      : '<p class="record">A fruit fly is buzzing around the Mensa. Mahlzeit!</p>';
   return `
   <div class="title-card">
     <div class="title-fly" aria-hidden="true"><div class="title-fly-path">${FLY_SVG}</div></div>
-    <div class="kicker">FLY ESCAPE LAB</div>
+    <div class="kicker">FLY ESCAPE LAB · MENSA EDITION</div>
     <h1 class="title-h1"><span>CATCH</span> <span>THE</span> <span>FLY</span></h1>
-    <p class="subtitle">Can you beat 200 million years of evolution?</p>
+    <p class="subtitle">Lunchtime in a Mensa in Bremen. One fly. Lots of witnesses.</p>
     ${record}
     ${difficultyPickerHTML(difficulty)}
     <div class="btn-row">
       <button class="btn primary big" data-action="start">START</button>
       <button class="btn secondary" data-action="howto">HOW IT WORKS</button>
     </div>
-    <p class="fineprint warn">⚠️ Things in this room break, and you pay for the damage.</p>
+    <p class="fineprint warn">⚠️ Hit a plate, a laptop or a person and it goes on your bill.</p>
   </div>`;
 }
 
@@ -93,7 +93,7 @@ export function howToHTML(touch: boolean): string {
       <ul>
         <li>Flies that are grooming or landing react a bit slower.</li>
         <li>A sideways sweep is harder for it to read than a straight swing.</li>
-        <li>Tall things (cup, monitor, window sill) can block the swatter. Watch the outline.</li>
+        <li>People's heads and the sneeze guard block the swatter (and you'll pay for the head). Watch the outline.</li>
         <li>Tired flies jump weaker. Moving in fast makes it alert.</li>
       </ul>
       <p class="muted">On Hard you'll miss about 99 times out of 100. Close calls are measured in millimetres, and the slow-motion replay shows what happened.</p>
@@ -106,9 +106,14 @@ export function howToHTML(touch: boolean): string {
       <p class="muted">Same fly brain in every mode. Easier modes just slow down its reflexes and make it land closer.</p>
     </section>
     <section>
+      <h3>The Mensa</h3>
+      <p>Jürgen, Frau Dr. Schmidt, Lukas and Mia are trying to have lunch, and Frau Meyer runs the food counter. They watch the fly, complain when you swing near them and wave it off their plates, so it won't sit still for long.</p>
+      <p class="muted">Mia likes the fly. Everyone else really doesn't.</p>
+    </section>
+    <section>
       <h3>The damage bill</h3>
-      <p>The swatter breaks whatever it lands on: the window, the monitor, the phone, the lamp, the plant, the mug… Every crack goes on your bill.</p>
-      <p class="muted">When you finally get the fly, you see what it cost you. Catch it with a $0 bill for a <b>surgical</b> kill. The room is repaired for every new fly.</p>
+      <p>The swatter breaks whatever it lands on: plates, glasses, the laptop, the phone, the window, the menu screen… Hit a person and you pay <i>Schmerzensgeld</i>.</p>
+      <p class="muted">When you finally get the fly you get the bill. Catch it for 0 € and it's stamped <b>SAUBER</b>. Everything is cleaned up for the next fly.</p>
     </section>
   </div>
   <div class="btn-row"><button class="btn secondary" data-action="science">Science &amp; About</button><button class="btn primary" data-action="close">Got it</button></div>`;
@@ -230,7 +235,7 @@ export function statsHTML(v: StatsView): string {
     ${card('CATCHES BY MODE', `${s.easyCatches} · ${s.mediumCatches} · ${s.hardCatches}`, '🐌 easy · 🪰 medium · 🥷 hard')}
     ${card('TOTAL DAMAGE', formatMoney(s.totalDamage), `${s.itemsBroken} thing${s.itemsBroken === 1 ? '' : 's'} broken`)}
     ${card('WORST ROUND', formatMoney(s.maxRoundDamage), 'most damage for one fly')}
-    ${card('CLEAN KILLS', String(s.cleanKills), 'catches with a $0 bill')}
+    ${card('CLEAN KILLS', String(s.cleanKills), 'catches with a 0 € bill')}
   </div>
   <p class="muted small">Mode: ${DIFFICULTIES[v.mode].icon} ${DIFFICULTIES[v.mode].label}${v.mode === 'hard' ? ` · adaptive level ${v.difficulty.toFixed(2)} (0 = gentler, 1 = sharper)` : ''} · recent success rate ${fmtPct(v.rollingSuccess, 2)} · current fly: ${esc(v.flyName)}</p>
   <h3>Achievements</h3>
@@ -267,7 +272,7 @@ export function catchHTML(v: CatchView): string {
   const rank = damageRank(v.total);
   const lines = v.receipt.length
     ? v.receipt.map((r, i) => `<li style="--i:${i}"><span>${esc(r.label)}</span><span>${formatMoney(r.cost)}</span></li>`).join('')
-    : '<li class="none" style="--i:0"><span>Nothing broken ✨</span><span>$0</span></li>';
+    : '<li class="none" style="--i:0"><span>Alles heil ✨</span><span>0 €</span></li>';
   const record = v.lab
     ? '<p class="muted">Lab catch. This fly\'s nervous system was modified, so it doesn\'t count toward your statistics.</p>'
     : v.previousBest === null || v.total < v.previousBest
@@ -279,9 +284,10 @@ export function catchHTML(v: CatchView): string {
     <h1 class="catch-title">GOT IT!</h1>
     <p class="catch-line">in <b>${v.attempts}</b> attempt${v.attempts === 1 ? '' : 's'}${v.traits.length ? ` · <span class="muted">${esc(v.traits.join(', '))}</span>` : ''}</p>
     <div class="receipt" style="--n:${Math.max(1, v.receipt.length)}">
-      <div class="receipt-head"><span>DAMAGE BILL</span><span>🧾</span></div>
+      <div class="receipt-head"><span>MENSA · RECHNUNG</span><span>🧾</span></div>
       <ul class="receipt-lines">${lines}</ul>
-      <div class="receipt-total"><span>TOTAL DAMAGE</span><span id="receipt-total" class="${v.total <= 0 ? 'zero' : ''}" data-total="${Math.round(v.total)}">$0</span></div>
+      <div class="receipt-total"><span>SUMME</span><span id="receipt-total" class="${v.total <= 0 ? 'zero' : ''}" data-total="${v.total}">0 €</span></div>
+      <div class="receipt-foot">inkl. 19 % MwSt. · Vielen Dank für Ihren Besuch!</div>
       <div class="stamp rank-${rank.title.toLowerCase().replace(/\s+/g, '-')}" id="receipt-stamp">${esc(rank.title)}</div>
     </div>
     <p class="rank-line">${esc(rank.line)}</p>
