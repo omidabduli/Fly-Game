@@ -170,6 +170,7 @@ export class Game {
     this.sim.on((e) => {
       switch (e.type) {
         case 'strikeStart':
+          this.idleBuzzIn = 30 + Math.random() * 15;
           if (this.mode === 'play') this.stats.recordSwing();
           break;
         case 'swingStart':
@@ -358,10 +359,24 @@ export class Game {
     if (shoo && this.sim.shoo()) this.audio.whoosh(900);
   }
 
+  /** Seconds until the fly buzzes by on its own (random, 30-45 s of quiet). */
+  private idleBuzzIn = 30 + Math.random() * 15;
+  private lastAudioTime = 0;
+
   private updateAudio(): void {
     const f = this.sim.fly;
     const sw = this.sim.swatter;
+    const dt = Math.min(0.2, Math.max(0, this.time - this.lastAudioTime));
+    this.lastAudioTime = this.time;
     const flying = f.alive && f.airborne && this.mode !== 'replay' && !this.paused;
+    // a quiet game gets an annoying buzz now and then; any swing or break resets the wait
+    if (this.mode === 'play' && !this.paused && f.alive) {
+      this.idleBuzzIn -= dt;
+      if (this.idleBuzzIn <= 0) {
+        this.audio.startBuzzBurst(this.time);
+        this.idleBuzzIn = 30 + Math.random() * 15;
+      }
+    }
     const d = Math.hypot(f.pos.x - sw.x, f.pos.y - sw.y);
     const near = 1 - Math.min(1, d / 220);
     const height = Math.min(1, f.heightAboveGround / 160);
@@ -882,7 +897,6 @@ export class Game {
     sw.reset(this.camera.toWorldX(this.aimSX), this.camera.toWorldY(this.aimSY));
     this.lastFrame = performance.now();
     this.haptics.play('light');
-    this.audio.setAmbience(true);
     // how to play: only until you've swung a few times
     if (this.stats.stats.swings < 5) {
       if (this.touchDevice) this.ui.toast('Drag to aim, tap to swat', 'Careful: people, plates and the laptop cost money!', 'info', false);

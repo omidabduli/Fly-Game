@@ -123,6 +123,15 @@ export class AudioEngine {
    * @param speed fly speed (mm/s)
    * @param proximity 0..1 (1 = right next to the player's swatter / close to the camera)
    */
+  /** A fly passing by: a buzz that swells, wanders and fades over `dur` seconds (used when it has been quiet for a while). */
+  startBuzzBurst(now: number, dur = 3 + Math.random() * 2): void {
+    this.burstStart = now;
+    this.burstEnd = now + dur;
+  }
+
+  private burstStart = 0;
+  private burstEnd = 0;
+
   updateBuzz(flying: boolean, speed: number, proximity: number, now: number): void {
     if (!this.ctx || !this.buzzGain || !this.osc1 || !this.osc2) return;
     if (now > this.nextEarshotChange) {
@@ -130,10 +139,17 @@ export class AudioEngine {
       this.nextEarshotChange = now + 0.8 + Math.random() * 2.5;
     }
     this.earshot += (this.earshotTarget - this.earshot) * 0.03;
-    const vol = flying ? 0.05 * (0.15 + 0.85 * proximity) * this.earshot * (0.7 + Math.min(0.6, speed / 2000)) : 0;
+    let vol = flying ? 0.05 * (0.15 + 0.85 * proximity) * this.earshot * (0.7 + Math.min(0.6, speed / 2000)) : 0;
+    let wander = 0;
+    if (now < this.burstEnd) {
+      const u = (now - this.burstStart) / (this.burstEnd - this.burstStart);
+      const env = Math.sin(Math.PI * Math.min(1, Math.max(0, u))) ** 0.6;
+      vol = Math.max(vol, 0.06 * env * (0.55 + 0.45 * Math.sin(now * 2.1) ** 2));
+      wander = Math.sin(now * 9) * 14 + Math.sin(now * 2.7) * 22;
+    }
     const t = this.ctx.currentTime;
     this.buzzGain.gain.setTargetAtTime(vol, t, flying ? 0.04 : 0.08);
-    const f = 205 + Math.min(45, speed / 30) + Math.sin(now * 7.3) * 3 + (Math.random() - 0.5) * 2;
+    const f = 205 + Math.min(45, speed / 30) + Math.sin(now * 7.3) * 3 + (Math.random() - 0.5) * 2 + wander;
     this.osc1.frequency.setTargetAtTime(f, t, 0.02);
     this.osc2.frequency.setTargetAtTime(f * 2.004, t, 0.02);
   }
@@ -391,63 +407,6 @@ export class AudioEngine {
   applause(): void {
     if (!this.ctx) return;
     for (let i = 0; i < 42; i++) this.hiss('bandpass', 1100 + Math.random() * 1600, 0.05 + Math.random() * 0.04, 0.02 + Math.random() * 0.02, { q: 1.4, delay: 0.25 + Math.random() * 1.8 * Math.sqrt(Math.random()), wet: 0.4 });
-  }
-
-  /**
-   * Mensa background noise: murmur of voices and cutlery. Very quiet, started
-   * once audio is unlocked and faded with `setAmbience`.
-   */
-  private ambGain: GainNode | null = null;
-  private clinkTimer = 0;
-
-  setAmbience(on: boolean): void {
-    if (!this.ctx || !this.master) return;
-    const ctx = this.ctx;
-    if (!this.ambGain) {
-      const n = this.noiseSource();
-      if (!n) return;
-      const bp = ctx.createBiquadFilter();
-      bp.type = 'bandpass';
-      bp.frequency.value = 420;
-      bp.Q.value = 0.7;
-      const lp = ctx.createBiquadFilter();
-      lp.type = 'lowpass';
-      lp.frequency.value = 900;
-      // slow swells, like many voices
-      const am = ctx.createGain();
-      am.gain.value = 0.7;
-      const lfo = ctx.createOscillator();
-      lfo.frequency.value = 0.35;
-      const lfoG = ctx.createGain();
-      lfoG.gain.value = 0.25;
-      lfo.connect(lfoG).connect(am.gain);
-      const lfo2 = ctx.createOscillator();
-      lfo2.frequency.value = 3.1;
-      const lfo2G = ctx.createGain();
-      lfo2G.gain.value = 0.12;
-      lfo2.connect(lfo2G).connect(am.gain);
-      this.ambGain = ctx.createGain();
-      this.ambGain.gain.value = 0;
-      n.connect(bp).connect(lp).connect(am).connect(this.ambGain).connect(this.master);
-      n.start();
-      lfo.start();
-      lfo2.start();
-    }
-    this.ambGain.gain.setTargetAtTime(on ? 0.05 : 0, ctx.currentTime, 0.6);
-    this.ambientOn = on;
-  }
-
-  private ambientOn = false;
-
-  /** Call every frame: occasional cutlery clinks while the ambience is on. */
-  tickAmbience(dt: number): void {
-    if (!this.ambientOn || !this.ctx) return;
-    this.clinkTimer -= dt;
-    if (this.clinkTimer > 0) return;
-    this.clinkTimer = 0.4 + Math.random() * 2.2;
-    const f = 2400 + Math.random() * 2600;
-    this.tone(f, 0.006 + Math.random() * 0.008, 0.06 + Math.random() * 0.08, 'triangle', 0, undefined, 0.3);
-    if (Math.random() < 0.3) this.tone(f * 1.34, 0.005, 0.05, 'sine', 0.05, undefined, 0.3);
   }
 
   /** Electric crackle, and a power-down whine when the thing is dead. */
