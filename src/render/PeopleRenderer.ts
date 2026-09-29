@@ -69,6 +69,9 @@ export class PeopleRenderer {
   drawBodies(ctx: Ctx, people: PeopleSystem, damage: DamageSystem, time: number): void {
     // the counter staff stand furthest back, so they are drawn first; the diners overlap them
     const order = [...people.people].sort((a, b) => Number(!!b.seat.staff) - Number(!!a.seat.staff));
+    // whoever is talking nods a little; the others lean toward them
+    let speaker: PersonState | null = null;
+    for (const q of people.people) if (q.bubble && q.bubble.t < q.bubble.life - 0.2 && (!speaker || q.bubble.t < speaker.bubble!.t)) speaker = q;
     for (const p of order) {
       const s = p.seat;
       ctx.save();
@@ -80,12 +83,15 @@ export class PeopleRenderer {
       // a hit throws the whole person back and shakes them; the head snaps and wobbles
       const hit = Math.min(1, p.hurtT / 1.2);
       const shake = hit > 0 ? Math.sin(time * 42) * 2.2 * hit * hit : 0;
-      ctx.translate(shake, bob + hit * 2.5);
+      const listening = speaker && speaker !== p && !s.staff && !speaker.seat.staff;
+      const lean = listening ? Math.max(-1, Math.min(1, (speaker!.seat.x - s.x) / 240)) : 0;
+      const nod = speaker === p ? -0.7 * Math.abs(Math.sin(time * 9.5)) : 0;
+      ctx.translate(shake + lean * 1.8, bob + hit * 2.5 + nod);
       const sprite = this.sprites[s.id];
       if (sprite?.ready) {
         // the whole person tilts a little around the waist when hit
         ctx.save();
-        const tilt = hit > 0 ? 0.05 * Math.sin(time * 16) * hit : 0;
+        const tilt = (hit > 0 ? 0.05 * Math.sin(time * 16) * hit : 0) + lean * 0.014;
         const pivotY = s.staff ? 90 : 200;
         ctx.translate(s.x, pivotY);
         ctx.rotate(tilt);

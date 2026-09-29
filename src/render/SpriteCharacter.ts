@@ -121,9 +121,25 @@ export class SpriteCharacter {
     return 'neutral';
   }
 
+  /**
+   * Is the mouth open at this moment of the sentence? It follows the real
+   * letters: vowels open it, and some consonants do too, so it flaps at a
+   * natural speaking pace and stops when the words end.
+   */
+  private mouthOpen(p: PersonState): boolean {
+    const b = p.bubble;
+    if (!b) return false;
+    const i = Math.floor(b.t * 13);
+    const ch = b.text[i];
+    if (!ch) return false;
+    if (/[aeiouyäöüAEIOUÄÖÜ]/.test(ch)) return true;
+    return /[a-zäöüß]/i.test(ch) && i % 3 === 0;
+  }
+
   /** Which pose fits what the person is doing right now. */
   pose(p: PersonState, time: number): Pose {
-    const talking = p.bubble !== null && p.bubble.t < p.bubble.life - 0.3;
+    const speaking = p.bubble !== null && p.bubble.t < p.bubble.life - 0.2;
+    const open = speaking && this.mouthOpen(p);
     if (p.hurtT > 0) return this.pick('hurt', 'angry');
     if (p.shooT > 0) return Math.floor(time * 6) % 2 ? this.pick('shoo2', 'shoo1', 'angry') : this.pick('shoo1', 'angry');
     if (p.mood === 'scared' || p.mood === 'nervous' || p.flinch > 0.35) {
@@ -141,10 +157,10 @@ export class SpriteCharacter {
       return this.pick('stand_angry', 'angry');
     }
     if (p.clapT > 0) return this.pick('stand_cheer', 'happy');
-    if (p.mood === 'happy') return this.pick(talking ? 'laugh' : 'happy', 'happy');
+    if (p.mood === 'happy') return this.pick(open ? 'laugh' : 'happy', 'happy');
     if (p.bite >= 0 && p.bite < 0.9) return this.pick('eat', 'talking');
-    if (p.chewT > 0) return Math.sin(time * 9) > 0 ? 'talking' : 'neutral';
-    if (talking) return 'talking';
+    // talking: the mouth moves only while words are coming out (chewing stays quiet)
+    if (speaking) return open ? 'talking' : p.blinkT > 0 ? 'blink' : 'neutral';
     if (p.blinkT > 0) return 'blink';
     return 'neutral';
   }
@@ -157,7 +173,7 @@ export class SpriteCharacter {
       this.cur = want;
       this.switchAt = time;
     }
-    const u = Math.min(1, (time - this.switchAt) / 0.12);
+    const u = Math.min(1, (time - this.switchAt) / 0.07);
     if (this.prev && u < 1) {
       this.drawPose(c, this.prev, x, eyeLevelY, scale, 1);
       this.drawPose(c, this.cur, x, eyeLevelY, scale, u);

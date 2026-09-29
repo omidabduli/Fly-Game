@@ -54,4 +54,29 @@ describe('people in the Mensa', () => {
     expect(people.get('juergen').clapT).toBeGreaterThan(0);
     expect(people.get('mia').mood).toBe('sad');
   });
+
+  it('has real conversations: several people, taking turns, and nobody talks over the next speaker', () => {
+    const people = new PeopleSystem(ownerOf);
+    const speakers = new Set<string>();
+    let lines = 0;
+    let overlapFrames = 0;
+    let frames = 0;
+    let last = '';
+    for (let t = 0; t < 200; t += 1 / 30) {
+      people.update(1 / 30, world(t, 'table', 300, 300));
+      const talking = people.people.filter((p) => p.bubble && p.bubble.t < p.bubble.life - 0.2);
+      for (const p of talking) {
+        speakers.add(p.def.id);
+        const key = `${p.def.id}:${p.bubble!.text}`;
+        if (key !== last && p.bubble!.t < 0.1) lines++;
+        if (p.bubble!.t < 0.1) last = key;
+      }
+      frames++;
+      if (talking.length > 1) overlapFrames++;
+    }
+    expect(speakers.size).toBeGreaterThanOrEqual(4);
+    expect(lines).toBeGreaterThan(12);
+    // two people may briefly overlap at the hand-over, but it is the exception
+    expect(overlapFrames / frames).toBeLessThan(0.15);
+  });
 });

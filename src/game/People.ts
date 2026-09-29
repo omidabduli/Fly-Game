@@ -139,17 +139,35 @@ export const PEOPLE: Record<PersonId, PersonDef> = {
   },
 };
 
-/** Little scripted conversations between the diners. */
-const DIALOGUES: [PersonId, string][][] = [
-  [['juergen', 'Werder gewinnt am Samstag, ich wette!'], ['lukas', 'Statistisch unwahrscheinlich.'], ['juergen', 'Lebenslang Grün-Weiß!']],
-  [['mia', 'Ist das etwa Currywurst? 🤢'], ['juergen', 'Das ist Kulturgut, Schatz!']],
-  [['schmidt', 'Aro? Du warst nicht in meiner Vorlesung.'], ['lukas', 'Ich war da. Nur ein bisschen weiter hinten.'], ['schmidt', 'Das erklärt die Sonnenbrille.']],
-  [['meyer', 'Essen zwei ist aus!'], ['juergen', 'Schon wieder?!']],
-  [['lena', 'Herr Meyer, die Pizza war gut.'], ['meyer', 'Ich weiß.']],
-  [['mia', 'Regnet es draußen?'], ['juergen', 'Wir sind in Bremen. Natürlich.']],
-  [['juergen', 'Moin!'], ['meyer', 'Moin moin!'], ['schmidt', 'Einmal Moin reicht.']],
-  [['lukas', 'Hat jemand eine Mensakarte für mich?'], ['schmidt', 'Nein.']],
-  [['mia', 'Wusstet ihr, Fliegen schmecken mit den Füßen?'], ['juergen', 'Beim Essen? Igitt.']],
+/**
+ * Little scripted conversations. Each line is [who, what, how the others react].
+ * The seat ids are the old scene names: juergen = Marisol, schmidt = Leila, lukas = Aro,
+ * lena = Lena, mia = Nora, meyer = Herr Meyer the cook.
+ */
+type Line = [PersonId, string, Mood?];
+const DIALOGUES: Line[][] = [
+  [['juergen', 'Wer von euch hat gestern den Kuchen geklaut?'], ['schmidt', 'Ich beantworte nur Fragen mit Fußnoten.'], ['lukas', 'Ich war’s nicht. Ich war beim Brezel-Training.'], ['juergen', 'Haha! Brezel-Training!', 'happy']],
+  [['mia', 'Habt ihr das gesehen? Die Wolken sind heute lila.'], ['lukas', 'Das ist der Sonnenuntergang im Fenster.'], ['mia', 'Um zwölf Uhr mittags?'], ['lena', 'Bremen halt.']],
+  [['schmidt', 'Wetten, dass ich die Fliege vor euch allen erwische?'], ['juergen', 'Wetten, dass nicht?'], ['schmidt', 'Einsatz: ein Kaffee.'], ['lukas', 'Ich nehm die Wette. Ich hab Zeit.']],
+  [['lena', 'Herr Meyer, ist Essen zwei wirklich aus?'], ['meyer', 'Seit elf Uhr, meine Liebe.'], ['lena', 'Dann stimmt die Anzeige ja mal.'], ['meyer', 'Das ist neu.', 'happy']],
+  [['juergen', 'Nora, dein Salat hat sich bewegt.'], ['mia', 'Was?! Wo?!', 'nervous'], ['juergen', 'Nur ein Scherz, Schatz!', 'happy'], ['mia', 'Das war nicht lustig… ein bisschen.']],
+  [['lukas', 'Leila, du hast Rotstift auf der Wange.'], ['schmidt', 'Das ist Korrekturfarbe. Steht mir.'], ['lukas', 'Stimmt. Sehr autoritär.']],
+  [['mia', 'Ich hab gelesen, Fliegen schmecken mit den Füßen.'], ['lena', 'Bitte nicht beim Essen.'], ['mia', 'Ich sag ja nur.'], ['juergen', 'Igitt, Nora!', 'disgusted']],
+  [['meyer', 'Heute Abend Kohl und Pinkel, wer kommt?'], ['juergen', 'Ich, Herr Meyer! Für die Stimmung!'], ['lukas', 'Ich bring Brezeln mit.'], ['schmidt', 'Ich korrigiere lieber Klausuren.']],
+  [['juergen', 'Ich hör da was summen.'], ['mia', 'Das bin nicht ich!', 'nervous'], ['lena', 'Das ist die Fliege. Sie plant was.'], ['schmidt', 'Fliegen planen nicht. Sie improvisieren.']],
+  [['lukas', 'Ich hab mein Hemd im Urlaub gekauft. Von einem Mann auf einem Boot.'], ['juergen', 'Das sieht man. Es ist wunderbar.'], ['lukas', 'Danke. Es riecht nach Abenteuer.', 'happy']],
+  [['lena', 'Sagt mal, wer bezahlt eigentlich, wenn hier was kaputtgeht?'], ['schmidt', 'Der, der zuschlägt.'], ['mia', 'Also wir nicht?'], ['juergen', 'Wir nicht! Ich schau nur zu.', 'happy']],
+  [['schmidt', 'Wem gehört der Eistee?'], ['lena', 'Meiner. Er steht noch. Ich pass auf.'], ['lukas', 'Beschützerinstinkt.'], ['lena', 'Erfahrung.']],
+  [['mia', 'Wie viele Fliegen passen auf eine Currywurst?'], ['juergen', 'Eine. Und die hat schon verloren.'], ['mia', 'Das ist gemein!'], ['juergen', 'Das ist Currywurst, Schatz.', 'happy']],
+  [['meyer', 'Tabletts bitte zurück!'], ['juergen', 'Gleich, Herr Meyer!'], ['meyer', 'Das sagen alle.'], ['schmidt', 'Meins steht schon am Wagen.'], ['meyer', 'Dann sind Sie die Einzige.']],
+  [['lukas', 'Ich hab da so ein Gefühl. Die Fliege beobachtet uns.'], ['mia', 'Sag das nicht!', 'nervous'], ['lena', 'Sie beobachtet dein Essen.'], ['lukas', 'Dann gibt es nur eine Lösung: schneller essen.']],
+  [['juergen', 'Wer kommt heute Abend mit tanzen?'], ['mia', 'Ich! Wenn es nicht regnet.'], ['schmidt', 'Ich habe Sprechstunde.'], ['lukas', 'Ich komm mit. Ich tanze langsam.']],
+  [['schmidt', 'Vorlesung morgen um acht.'], ['lukas', 'Um acht Uhr existiere ich noch nicht.'], ['schmidt', 'Ich notiere das.'], ['lukas', 'Bitte nicht.', 'happy']],
+  [['lena', 'Ich arbeite hier seit fünf Jahren, und jedes Mal wieder Fliegen.'], ['meyer', 'Das ist Tradition, Lena.'], ['lena', 'Ich hasse Tradition.']],
+  [['mia', 'Ist der Kaffee eigentlich vegan?'], ['schmidt', 'Kaffee ist eine Bohne, Nora.'], ['mia', 'Und die Milch?'], ['schmidt', 'Dazu habe ich keinen Kommentar.', 'happy']],
+  [['lukas', 'Marisol, was ist dein Geheimnis?'], ['juergen', 'Ich lache viel und esse noch mehr!', 'happy'], ['lukas', 'Klingt nach einem Plan.'], ['juergen', 'Ist es auch!']],
+  [['meyer', 'Moin zusammen! Alles gut bei euch?'], ['juergen', 'Bestens, Herr Meyer!'], ['schmidt', 'Bis auf die Fliege.'], ['meyer', 'Die hab ich seit Montag im Blick.']],
+  [['mia', 'Seht ihr auch das Gesicht in der Wolke da draußen?'], ['lena', 'Nein.'], ['lukas', 'Ich seh eine Brezel.'], ['mia', 'Da! Das ist eine Brezel!', 'happy']],
 ];
 
 export interface Bubble {
@@ -208,7 +226,7 @@ export class PeopleSystem {
   private readonly byId = new Map<PersonId, PersonState>();
   private time = 0;
   private idleNext = 7;
-  private queue: { p: PersonState; text: string; prio: number; at: number; mood?: Mood }[] = [];
+  private queue: { p: PersonState; text: string; prio: number; at: number; mood?: Mood; force?: boolean; react?: Mood; others?: PersonId[] }[] = [];
   private dialogueIndex = Math.floor(Math.random() * DIALOGUES.length);
   private damageTold = 0;
 
@@ -274,11 +292,16 @@ export class PeopleSystem {
   }
 
   /** Say a line; `prio` decides who gets to talk when several want to (0 idle … 3 pain). */
-  say(p: PersonState, text: string, prio: number): boolean {
+  say(p: PersonState, text: string, prio: number, force = false): boolean {
     if (p.bubble && p.bubble.prio > prio && p.bubble.t < p.bubble.life * 0.7) return false;
-    if (!p.bubble && prio < 2 && this.visibleBubbles() >= 2) return false;
-    p.bubble = { text, t: 0, life: Math.min(3.8, 1.5 + text.length * 0.045), prio };
+    if (!force && !p.bubble && prio < 2 && this.visibleBubbles() >= 2) return false;
+    p.bubble = { text, t: 0, life: this.bubbleLife(text), prio };
     return true;
+  }
+
+  /** How long a line stays up (and how long it takes to say). */
+  private bubbleLife(text: string): number {
+    return Math.min(4.2, 1.6 + text.length * 0.05);
   }
 
   private line(p: PersonState, kind: LineKind, prio: number, cooldown = 0): boolean {
@@ -303,7 +326,11 @@ export class PeopleSystem {
       const q = this.queue[i];
       if (q.at > this.time) continue;
       this.queue.splice(i, 1);
-      if (this.say(q.p, q.text, q.prio) && q.mood) this.setMood(q.p, q.mood, 2);
+      if (this.say(q.p, q.text, q.prio, q.force)) {
+        if (q.mood) this.setMood(q.p, q.mood, 2);
+        // the others laugh, wince or look worried
+        if (q.react) for (const id of q.others ?? []) if (this.get(id).mood === 'calm') this.setMood(this.get(id), q.react, 1.6);
+      }
     }
     for (const p of this.people) {
       const s = p.seat;
@@ -390,15 +417,20 @@ export class PeopleSystem {
       } else p.overSince = null;
     }
 
-    // idle chatter and little conversations
+    // idle chatter and little conversations: everyone takes a turn, one after the other
     this.idleNext -= dt;
     if (this.idleNext <= 0) {
-      this.idleNext = range(9, 18);
+      this.idleNext = range(6, 11);
       if (this.visibleBubbles() === 0 && w.fly.alive) {
-        if (Math.random() < 0.45) {
+        if (Math.random() < 0.75) {
           const d = DIALOGUES[this.dialogueIndex++ % DIALOGUES.length];
-          d.forEach(([id, text], i) => this.queue.push({ p: this.get(id), text, prio: 0, at: this.time + i * 2.4 }));
-          this.idleNext += d.length * 2.4;
+          const ids = new Set(d.map(([id]) => id));
+          let at = this.time + 0.2;
+          for (const [id, text, react] of d) {
+            this.queue.push({ p: this.get(id), text, prio: 0, at, force: true, react, others: [...ids].filter((x) => x !== id) });
+            at += this.bubbleLife(text) + 0.45;
+          }
+          this.idleNext += at - this.time;
         } else this.line(pick(this.people), 'idle', 0);
       }
     }
