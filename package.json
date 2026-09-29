@@ -1,8 +1,8 @@
 {
-  "name": "fly-escape-lab",
+  "name": "catch-the-fly",
   "private": true,
   "version": "1.0.0",
-  "description": "Browser game: try to swat a fruit fly with a simulated escape reflex.",
+  "description": "Browser game: catch a fly at lunch in a Bremen canteen.",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,8 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "benchmark": "tsx scripts/benchmark.ts",
-    "benchmark:quick": "tsx scripts/benchmark.ts --attacks 2000",
-    "connectome:preprocess": "tsx scripts/preprocess-connectome.ts"
+    "benchmark:quick": "tsx scripts/benchmark.ts --attacks 2000"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",

@@ -2,6 +2,7 @@ import { type PersonId, TABLE_Y } from '../environment/Scene';
 import type { DamageSystem } from '../game/DamageSystem';
 import type { PeopleSystem, PersonState } from '../game/People';
 import type { Camera } from './Camera';
+import { SpriteCharacter, type SpriteLayout } from './SpriteCharacter';
 import { drawBubble } from './RoomFx';
 
 type Ctx = CanvasRenderingContext2D;
@@ -33,6 +34,21 @@ const easeInOut = (u: number) => u * u * (3 - 2 * u);
  * type and clap), and speech bubbles last, in screen space.
  */
 export class PeopleRenderer {
+  /** Who sits where: the ready-made character sprites (public/characters/<name>). */
+  private readonly sprites: Record<PersonId, SpriteCharacter>;
+
+  constructor() {
+    const base = import.meta.env.BASE_URL;
+    const layout = (eyeY: number): SpriteLayout => ({ mmPerPx: 0.142, eyeY });
+    this.sprites = {
+      juergen: new SpriteCharacter(base, 'marisol', layout(300)),
+      schmidt: new SpriteCharacter(base, 'leila', layout(292)),
+      lukas: new SpriteCharacter(base, 'yuna', layout(297)),
+      mia: new SpriteCharacter(base, 'nora', layout(290)),
+      meyer: new SpriteCharacter(base, 'character', layout(287)),
+    };
+  }
+
   /** Heads, shoulders and upper arms (clipped at the table edge / behind the counter). */
   drawBodies(ctx: Ctx, people: PeopleSystem, damage: DamageSystem, time: number): void {
     for (const p of people.people) {
@@ -43,9 +59,25 @@ export class PeopleRenderer {
       else ctx.rect(s.x - 80, -40, 160, TABLE_Y + 40.5);
       ctx.clip();
       const bob = Math.sin(time * 1.6 + s.x) * 0.5 - p.flinch * 3;
-      ctx.translate(0, bob);
-      this.torso(ctx, p);
-      this.head(ctx, p, damage, time);
+      // a hit throws the whole person back and shakes them; the head snaps and wobbles
+      const hit = Math.min(1, p.hurtT / 1.2);
+      const shake = hit > 0 ? Math.sin(time * 42) * 2.2 * hit * hit : 0;
+      ctx.translate(shake, bob + hit * 2.5);
+      const sprite = this.sprites[s.id];
+      if (sprite.ready) {
+        // the whole person tilts a little around the waist when hit
+        ctx.save();
+        const tilt = hit > 0 ? 0.05 * Math.sin(time * 16) * hit : 0;
+        const pivotY = s.staff ? 90 : 200;
+        ctx.translate(s.x, pivotY);
+        ctx.rotate(tilt);
+        ctx.translate(-s.x, -pivotY);
+        sprite.draw(ctx, p, s.x, s.y - 2, time, s.staff ? 0.6 : 1);
+        ctx.restore();
+      } else {
+        this.torso(ctx, p);
+        this.head(ctx, p, damage, time);
+      }
       ctx.restore();
       if (s.staff) {
         // the sneeze guard is in front of her
@@ -741,8 +773,11 @@ export class PeopleRenderer {
       const y = s.y + Math.sin(time * 1.6 + x) * 0.5 - p.flinch * 3;
       const elbowL: [number, number] = [x - 44, TABLE_Y - 3];
       const elbowR: [number, number] = [x + 44, TABLE_Y - 3];
-      let hl: [number, number] = s.id === 'lukas' ? [x - 14, 274] : [x - 30, 250];
-      let hr: [number, number] = s.id === 'lukas' ? [x + 14, 274] : [x + 14, 254];
+      // the sprites already include their arms (resting below the table edge)
+      if (this.sprites[s.id].ready) continue;
+      // fallback drawing while the images load: rest her hands beside the laptop instead of reaching through it
+      let hl: [number, number] = s.id === 'lukas' ? [x - 44, 270] : [x - 30, 250];
+      let hr: [number, number] = s.id === 'lukas' ? [x + 43, 272] : [x + 14, 254];
       let morsel = false;
       if (s.id === 'lukas' && p.mood === 'calm' && p.bite < 0) {
         // typing

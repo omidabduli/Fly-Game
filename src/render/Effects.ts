@@ -58,7 +58,7 @@ interface Imprint {
 }
 
 const MAX_PARTICLES = 320;
-const FONT = 'ui-rounded, "SF Pro Rounded", "Arial Rounded MT Bold", system-ui, -apple-system, sans-serif';
+const FONT = 'Newsreader, "Iowan Old Style", Georgia, serif';
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const pick = <T,>(a: T[]): T => a[Math.floor(Math.random() * a.length)];
@@ -347,7 +347,7 @@ export class Effects {
         alpha = u > 0.5 ? 1 - (u - 0.5) / 0.5 : Math.min(1, t.t / 0.1);
       }
       ctx.save();
-      ctx.font = `900 ${t.size}px ${FONT}`;
+      ctx.font = `italic 600 ${t.size}px ${FONT}`;
       // keep it on screen (and below the HUD)
       const half = ctx.measureText(t.text).width / 2 + 10;
       x = Math.min(cam.viewW - half, Math.max(half, x));

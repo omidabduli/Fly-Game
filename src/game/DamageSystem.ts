@@ -109,19 +109,19 @@ export const BREAKABLES: BreakableDef[] = [
       { cost: 45, label: 'Blumentopf zerbrochen', word: 'RUMMS!', kind: 'terracotta' },
     ],
   },
-  person('juergen', 'Jürgen', [hurt(50, 'Schmerzensgeld Jürgen', 'AUA!'), hurt(80, 'Beule auf Jürgens Glatze', 'BONK!'), hurt(150, 'Jürgens Anwalt', 'AUAAA!')]),
-  person('schmidt', 'Frau Dr. Schmidt', [
-    { cost: 260, label: 'Brille von Frau Dr. Schmidt', word: 'KNACK!', kind: 'glass' },
-    hurt(120, 'Schmerzensgeld Frau Dr. Schmidt', 'AUA!'),
+  person('juergen', 'Marisol', [hurt(50, 'Schmerzensgeld Marisol', 'AUA!'), hurt(80, 'Beule auf Marisols Stirn', 'BONK!'), hurt(150, 'Marisols Anwältin', 'AUAAA!')]),
+  person('schmidt', 'Leila', [
+    { cost: 260, label: 'Leilas Sonnenbrille', word: 'KNACK!', kind: 'glass' },
+    hurt(120, 'Schmerzensgeld Leila', 'AUA!'),
     hurt(200, 'Dienstaufsichtsbeschwerde', 'BONK!'),
   ]),
-  person('lukas', 'Lukas', [
-    hurt(50, 'Schmerzensgeld Lukas', 'AUA!'),
-    { cost: 180, label: 'Kopfhörer von Lukas', word: 'KNACKS!', kind: 'screen' },
-    hurt(150, "Lukas' Anwalt", 'BONK!'),
+  person('lukas', 'Yuna', [
+    hurt(50, 'Schmerzensgeld Yuna', 'AUA!'),
+    { cost: 180, label: 'Yunas Kopfhörer', word: 'KNACKS!', kind: 'screen' },
+    hurt(150, "Yunas Anwältin", 'BONK!'),
   ]),
-  person('mia', 'Mia', [hurt(50, 'Schmerzensgeld Mia', 'AUA!'), hurt(25, 'Mias Mütze ruiniert', 'PLOPP!'), hurt(150, 'Mias Anwältin', 'BONK!')]),
-  person('meyer', 'Frau Meyer', [hurt(60, 'Schmerzensgeld Frau Meyer', 'AUA!'), hurt(90, 'Frau Meyer ist beleidigt', 'BONK!')]),
+  person('mia', 'Nora', [hurt(50, 'Schmerzensgeld Nora', 'AUA!'), hurt(25, 'Noras Frisur ruiniert', 'PLOPP!'), hurt(150, 'Noras Anwältin', 'BONK!')]),
+  person('meyer', 'Lena', [hurt(60, 'Schmerzensgeld Lena', 'AUA!'), hurt(90, 'Lena ist beleidigt', 'BONK!')]),
   { id: 'currywurst', name: 'Currywurst', objects: ['currywurst'], owner: 'juergen', stages: [{ cost: 3.2, label: 'Currywurst zermatscht', word: 'SPLATSCH!', kind: 'food' }] },
   { id: 'fries', name: 'fries', objects: ['fries'], owner: 'juergen', stages: [{ cost: 2.1, label: 'Pommes überall', word: 'ZACK!', kind: 'crumbs' }] },
   {
@@ -298,7 +298,7 @@ export interface DamageRank {
 export function damageRank(total: number): DamageRank {
   if (total <= 0) return { title: 'SAUBER', line: 'Not a scratch on anything. Ordnung muss sein.' };
   if (total < 20) return { title: 'ORDENTLICH', line: 'Barely a mess.' };
-  if (total < 200) return { title: 'SCHLAMPIG', line: 'Frau Meyer is not amused.' };
+  if (total < 200) return { title: 'SCHLAMPIG', line: 'Lena is not amused.' };
   if (total < 800) return { title: 'CHAOT', line: 'The whole Mensa is staring at you.' };
   return { title: 'TOTALSCHADEN', line: 'The fly is dead. So is the Mensa.' };
 }

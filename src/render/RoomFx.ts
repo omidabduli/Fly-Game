@@ -5,7 +5,8 @@ import type { Effects } from './Effects';
 
 type Ctx = CanvasRenderingContext2D;
 
-const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+const SANS = '"Instrument Sans", "Helvetica Neue", Arial, system-ui, sans-serif';
+const MONO = '"JetBrains Mono", ui-monospace, Menlo, monospace';
 
 interface Notice {
   app: string;
@@ -28,48 +29,48 @@ const MESSAGES: { min: number; app: string; from: string; text: string }[] = [
   { min: 900, app: '📰', from: 'Eilmeldung', text: 'Chaos in der Uni-Mensa: Fliege überlebt' },
 ];
 
-/** Screen-space speech bubble with a tail pointing down at (x, y). */
+/** Screen-space speech bubble on paper, with a small tail pointing down at (x, y). */
 export function drawBubble(ctx: Ctx, x: number, y: number, lines: [string, string?], alpha: number, scale: number, viewW: number, dark = false): void {
   ctx.save();
   ctx.globalAlpha = alpha;
   const [head, body] = lines;
-  ctx.font = `800 14px ${FONT}`;
-  const w1 = ctx.measureText(head).width;
-  ctx.font = `500 12.5px ${FONT}`;
-  const w2 = body ? ctx.measureText(body).width : 0;
-  const w = Math.max(w1, w2) + 22;
-  const h = body ? 44 : 30;
+  // with one line, that line is the text; with two, the first is the speaker's name
+  const name = body ? head : '';
+  const text = body ?? head;
+  ctx.font = `500 10.5px ${MONO}`;
+  const w1 = name ? ctx.measureText(name.toUpperCase()).width + name.length * 0.8 : 0;
+  ctx.font = `500 14px ${SANS}`;
+  const w2 = ctx.measureText(text).width;
+  const w = Math.max(w1, w2) + 26;
+  const h = name ? 48 : 34;
   const bx = Math.min(viewW - w / 2 - 8, Math.max(w / 2 + 8, x));
   const by = y - 10 - h;
   ctx.translate(bx, by + h);
   ctx.scale(scale, scale);
   ctx.translate(-bx, -(by + h));
   const tx = Math.min(bx + w / 2 - 14, Math.max(bx - w / 2 + 14, x));
-  const shape = (dy: number) => {
-    ctx.beginPath();
-    ctx.roundRect(bx - w / 2, by + dy, w, h, 12);
-    // tail
-    ctx.moveTo(tx - 7, by + h - 1 + dy);
-    ctx.lineTo(tx, by + h + 8 + dy);
-    ctx.lineTo(tx + 7, by + h - 1 + dy);
-  };
-  // cheap drop shadow (shadowBlur is very slow in Safari on iPhones)
-  shape(3);
-  ctx.fillStyle = 'rgba(0,0,0,0.22)';
+  ctx.beginPath();
+  ctx.roundRect(bx - w / 2, by, w, h, 14);
+  ctx.moveTo(tx - 6, by + h - 1);
+  ctx.lineTo(tx, by + h + 7);
+  ctx.lineTo(tx + 6, by + h - 1);
+  ctx.fillStyle = dark ? '#252420' : '#faf9f5';
   ctx.fill();
-  shape(0);
-  ctx.fillStyle = dark ? 'rgba(24,26,32,0.94)' : 'rgba(252,252,250,0.96)';
-  ctx.fill();
+  ctx.strokeStyle = dark ? '#3a3833' : '#e3dfd3';
+  ctx.lineWidth = 1;
+  ctx.stroke();
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = dark ? '#fff' : '#17181c';
-  ctx.font = `800 14px ${FONT}`;
-  ctx.fillText(head, bx - w / 2 + 11, by + (body ? 15 : h / 2));
-  if (body) {
-    ctx.font = `500 12.5px ${FONT}`;
-    ctx.fillStyle = dark ? 'rgba(255,255,255,0.8)' : '#3b3d44';
-    ctx.fillText(body, bx - w / 2 + 11, by + 31);
+  if (name) {
+    ctx.font = `500 10.5px ${MONO}`;
+    ctx.fillStyle = dark ? '#a19e94' : '#6e6c64';
+    ctx.letterSpacing = '0.8px';
+    ctx.fillText(name.toUpperCase(), bx - w / 2 + 13, by + 15);
+    ctx.letterSpacing = '0px';
   }
+  ctx.font = `500 14px ${SANS}`;
+  ctx.fillStyle = dark ? '#f0eee6' : '#141413';
+  ctx.fillText(text, bx - w / 2 + 13, by + (name ? 33 : h / 2));
   ctx.restore();
 }
 

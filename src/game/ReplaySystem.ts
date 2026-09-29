@@ -138,12 +138,12 @@ export class ReplaySystem {
       const [x, y] = posAt(ms);
       events.push({ ms, kind, label, x, y });
     };
-    add(result.threatMs, 'threat', 'threat detected');
-    add(result.perceivedMs, 'perceived', 'escape neuron fired');
-    add(result.commandMs, 'command', 'escape direction chosen');
-    add(result.takeoffMs, 'takeoff', result.flyAirborneAtStrike ? 'evasive manoeuvre' : 'take-off');
-    add(result.clearMs, 'clear', 'cleared the swatter');
-    add(0, result.hit ? 'hit' : 'impact', result.hit ? 'CAUGHT' : 'swatter impact');
+    add(result.threatMs, 'threat', 'The fly spots the swatter');
+    add(result.perceivedMs, 'perceived', 'It decides to jump');
+    add(result.commandMs, 'command', 'It picks a direction');
+    add(result.takeoffMs, 'takeoff', result.flyAirborneAtStrike ? 'Dodge!' : 'Jump!');
+    add(result.clearMs, 'clear', 'Safe');
+    add(0, result.hit ? 'hit' : 'impact', result.hit ? 'Caught' : 'Swatter lands');
     events.sort((a, b) => a.ms - b.ms);
     const clip: ReplayClip = {
       times,

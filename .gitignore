@@ -6,3 +6,6 @@ coverage/
 .vite/
 benchmark-results.json
 scripts/sample-data/SYNTHETIC-circuit.json
+
+# full-size character art stays on your machine; the game uses public/characters/*.webp
+assets/characters/**/*.png

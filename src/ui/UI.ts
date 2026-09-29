@@ -19,7 +19,6 @@ export class UI {
   private readonly hud: HTMLElement;
   private readonly hudDamage: HTMLElement;
   private readonly hudAttempts: HTMLElement;
-  private readonly hudBadge: HTMLElement;
   private readonly hudDiff: HTMLElement;
   private readonly hudFly: HTMLElement;
   private receiptTimer = 0;
@@ -29,7 +28,6 @@ export class UI {
   private readonly modalCard: HTMLElement;
   private readonly titleLayer: HTMLElement;
   readonly replayBar: HTMLElement;
-  readonly labPanel: HTMLElement;
   private toastTimer = 0;
   private achTimer = 0;
   private lastHud = '';
@@ -41,15 +39,12 @@ export class UI {
       'beforeend',
       `
       <header class="hud" id="hud" hidden>
-        <div class="hud-stat"><span class="hud-label">Damage</span><span class="hud-value hud-damage" id="hud-damage">0 €</span></div>
-        <div class="hud-badge" id="hud-badge"><span class="diff-tag" id="hud-diff"></span><span class="hud-fly" id="hud-fly"></span></div>
-        <div class="hud-stat right"><span class="hud-label">Attempts</span><span class="hud-value" id="hud-attempts">0</span></div>
+        <div class="hud-fig"><span class="eyebrow">Damage</span><span class="hud-num" id="hud-damage">0 €</span></div>
+        <div class="hud-mid"><span class="tag" id="hud-diff"></span><span class="eyebrow" id="hud-fly"></span></div>
+        <div class="hud-fig right"><span class="eyebrow">Swings</span><span class="hud-num" id="hud-attempts">0</span></div>
         <nav class="hud-buttons" aria-label="Game controls">
           <button class="icon-btn replay-btn" data-action="replay" id="btn-replay" aria-label="Replay the last close call" hidden>${ICONS.replay}</button>
           <button class="icon-btn" data-action="sound" id="btn-sound" aria-label="Mute sound">${ICONS.soundOn}</button>
-          <button class="icon-btn" data-action="brain" id="btn-brain" aria-label="Toggle Brain View" aria-pressed="false">${ICONS.brain}</button>
-          <button class="icon-btn" data-action="lab" id="btn-lab" aria-label="Toggle Lab Mode" aria-pressed="false">${ICONS.flask}</button>
-          <button class="icon-btn" data-action="stats" aria-label="Statistics and achievements">${ICONS.chart}</button>
           <button class="icon-btn" data-action="menu" aria-label="Menu">${ICONS.menu}</button>
         </nav>
       </header>
@@ -60,14 +55,12 @@ export class UI {
         <div class="modal-card" role="dialog" aria-modal="true" id="modal-card"></div>
       </div>
       <div class="replay-bar" id="replay-bar" hidden></div>
-      <aside class="lab-panel" id="lab-panel" hidden aria-label="Lab Mode"></aside>
       `,
     );
     const $ = (id: string) => root.querySelector<HTMLElement>(`#${id}`)!;
     this.hud = $('hud');
     this.hudDamage = $('hud-damage');
     this.hudAttempts = $('hud-attempts');
-    this.hudBadge = $('hud-badge');
     this.hudDiff = $('hud-diff');
     this.hudFly = $('hud-fly');
     this.toastEl = $('toast');
@@ -76,7 +69,6 @@ export class UI {
     this.modalCard = $('modal-card');
     this.titleLayer = $('title-layer');
     this.replayBar = $('replay-bar');
-    this.labPanel = $('lab-panel');
     root.addEventListener('click', (e) => {
       const el = (e.target as HTMLElement).closest<HTMLElement>('[data-action]');
       if (el && root.contains(el)) {
@@ -106,7 +98,7 @@ export class UI {
     );
   }
 
-  /** `mode` is the difficulty id (or 'lab'), shown as a coloured tag. */
+  /** `mode` is the difficulty id, shown as a small tag. */
   setHud(damage: string, attempts: number, mode: string, modeLabel: string, fly: string): void {
     const key = `${damage}|${attempts}|${mode}|${modeLabel}|${fly}`;
     if (key === this.lastHud) return;
@@ -114,9 +106,7 @@ export class UI {
     this.hudDamage.textContent = damage;
     this.hudAttempts.textContent = String(attempts);
     this.hudDiff.textContent = modeLabel;
-    this.hudDiff.className = `diff-tag diff-${mode}`;
     this.hudFly.textContent = fly;
-    this.hudBadge.classList.toggle('lab', mode === 'lab');
   }
 
   /** Show the replay button once there's a close call to watch (it pulses when a new one arrives). */
@@ -179,13 +169,6 @@ export class UI {
     this.receiptTimer = window.setTimeout(step, start);
   }
 
-  setToggle(id: 'brain' | 'lab', on: boolean): void {
-    const b = this.root.querySelector<HTMLElement>(`#btn-${id}`);
-    if (!b) return;
-    b.classList.toggle('on', on);
-    b.setAttribute('aria-pressed', String(on));
-  }
-
   setMuted(muted: boolean): void {
     const b = this.root.querySelector<HTMLElement>('#btn-sound');
     if (!b) return;
@@ -200,12 +183,14 @@ export class UI {
     this.titleLayer.hidden = false;
   }
 
-  /** Highlight the chosen card in any visible difficulty picker. */
+  /** Highlight the chosen chip in any visible difficulty picker. */
   selectDifficulty(id: string): void {
-    this.root.querySelectorAll<HTMLElement>('.diff-card').forEach((b) => {
+    this.root.querySelectorAll<HTMLElement>('.chip[data-diff]').forEach((b) => {
       const on = b.dataset.diff === id;
       b.classList.toggle('on', on);
       b.setAttribute('aria-checked', String(on));
+      b.setAttribute('aria-pressed', String(on));
+      if (on) this.root.querySelectorAll<HTMLElement>('.diff-line').forEach((l) => (l.textContent = b.dataset.line ?? ''));
     });
   }
 
@@ -236,14 +221,13 @@ export class UI {
   }
 
   toast(headline: string, sub: string, tone: ToastTone, replay: boolean): void {
-    const tag =
-      tone === 'extreme' ? 'EXTREMELY CLOSE' : tone === 'near' ? 'NEAR MISS' : tone === 'close' ? 'CLOSE' : tone === 'blocked' ? 'BLOCKED' : tone === 'miss' ? 'MISS' : '';
+    const tag = tone === 'extreme' ? 'Extremely close' : tone === 'near' ? 'Near miss' : tone === 'close' ? 'Close' : tone === 'blocked' ? 'Blocked' : tone === 'miss' ? 'Miss' : '';
     this.toastEl.className = `toast tone-${tone}`;
     this.toastEl.innerHTML = `
-      ${tag ? `<div class="toast-tag">${tag}</div>` : ''}
-      <div class="toast-head">${esc(headline)}</div>
-      ${sub ? `<div class="toast-sub">${esc(sub)}</div>` : ''}
-      ${replay ? `<button class="btn pill" data-action="replay">${ICONS.replay}<span>REPLAY</span></button>` : ''}`;
+      ${tag ? `<span class="eyebrow">${tag}</span>` : ''}
+      <strong>${esc(headline)}</strong>
+      ${sub ? `<span class="toast-sub">${esc(sub)}</span>` : ''}
+      ${replay ? `<button class="btn small" data-action="replay">Replay</button>` : ''}`;
     this.toastEl.hidden = false;
     this.toastEl.classList.remove('show');
     void this.toastEl.offsetWidth;
@@ -258,7 +242,7 @@ export class UI {
   }
 
   achievement(a: AchievementDef): void {
-    this.achEl.innerHTML = `<span class="ach-icon">${a.icon}</span><span><small>Achievement unlocked</small><br><b>${esc(a.title)}</b></span>`;
+    this.achEl.innerHTML = `<span class="eyebrow">Achievement</span><strong>${esc(a.title)}</strong>`;
     this.achEl.hidden = false;
     this.achEl.classList.remove('show');
     void this.achEl.offsetWidth;
@@ -270,37 +254,22 @@ export class UI {
   }
 
   // --- replay bar -------------------------------------------------------------
-  showReplayBar(events: ReplayEvent[], t0: number, t1: number): void {
-    const span = t1 - t0;
-    const ticks = events
-      .map((e) => {
-        const u = ((e.ms / 1000 - t0) / span) * 100;
-        return `<span class="rtick k-${e.kind}" style="left:${u.toFixed(2)}%" title="${esc(e.label)}"></span>`;
-      })
-      .join('');
-    const legend = events
-      .map((e) => `<li class="k-${e.kind}"><b>${e.ms > 0 ? '+' : ''}${e.ms.toFixed(0)} ms</b> ${esc(e.label)}</li>`)
-      .join('');
+  showReplayBar(_events: ReplayEvent[], _t0: number, _t1: number): void {
     this.replayBar.innerHTML = `
       <div class="replay-top">
-        <span class="replay-title">SLOW-MOTION REPLAY</span>
+        <span class="eyebrow">Slow-motion replay</span>
         <span class="replay-time" id="replay-time">−500 ms</span>
         <button class="icon-btn" data-action="replay-close" aria-label="Close replay">${ICONS.close}</button>
       </div>
-      <div class="replay-track">
-        <input type="range" id="replay-scrub" min="0" max="1000" value="0" aria-label="Replay position">
-        <div class="replay-ticks">${ticks}</div>
-      </div>
+      <input type="range" id="replay-scrub" min="0" max="1000" value="0" aria-label="Replay position">
       <div class="replay-controls">
         <button class="icon-btn" data-action="replay-toggle" id="replay-play" aria-label="Pause">${ICONS.pause}</button>
-        <div class="seg" role="group" aria-label="Playback speed">
-          <button class="seg-btn" data-action="replay-speed" data-speed="0.02">1/50×</button>
-          <button class="seg-btn on" data-action="replay-speed" data-speed="0.05">1/20×</button>
-          <button class="seg-btn" data-action="replay-speed" data-speed="0.1">1/10×</button>
-          <button class="seg-btn" data-action="replay-speed" data-speed="0.25">1/4×</button>
+        <div class="chips" role="group" aria-label="Playback speed">
+          <button class="chip" data-action="replay-speed" data-speed="0.05">1/20×</button>
+          <button class="chip" data-action="replay-speed" data-speed="0.1">1/10×</button>
+          <button class="chip" data-action="replay-speed" data-speed="0.25">1/4×</button>
         </div>
-      </div>
-      <ol class="replay-legend">${legend}</ol>`;
+      </div>`;
     this.replayBar.hidden = false;
   }
 
@@ -315,7 +284,7 @@ export class UI {
       p.innerHTML = playing ? ICONS.pause : ICONS.play;
       p.setAttribute('aria-label', playing ? 'Pause' : 'Play');
     }
-    this.replayBar.querySelectorAll<HTMLElement>('.seg-btn').forEach((b) => b.classList.toggle('on', Number(b.dataset.speed) === speed));
+    this.replayBar.querySelectorAll<HTMLElement>('.chip').forEach((b) => b.classList.toggle('on', Number(b.dataset.speed) === speed));
   }
 
   hideReplayBar(): void {

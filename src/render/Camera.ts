@@ -8,6 +8,8 @@ import { clamp } from '../math/vec';
 export class Camera {
   /** CSS px per mm */
   scale = 3;
+  private baseScale = 3;
+  private zoomMult = 1;
   /** world coordinates of the viewport's top-left corner */
   x0 = 0;
   y0 = 0;
@@ -37,12 +39,27 @@ export class Camera {
     const cover = Math.max(viewW / this.worldW, viewH / this.worldH);
     let s = Math.min(cover, fit * 1.08);
     s = Math.max(s, this.minScale);
-    this.scale = s;
+    this.baseScale = s;
+    this.scale = s * this.zoomMult;
+    s = this.scale;
     const vwMm = viewW / s;
     const vhMm = viewH / s;
     this.panning = vwMm < this.worldW - 1 || vhMm < this.worldH - 1;
     this.x0 = this.tx = this.clampX((this.worldW - vwMm) / 2);
     this.y0 = this.ty = this.clampY((this.worldH - vhMm) / 2);
+  }
+
+  /** Zoom in around the current centre (used by the replay). 1 = normal. */
+  setZoom(mult: number): void {
+    if (mult === this.zoomMult) return;
+    const cx = this.x0 + this.viewWmm / 2;
+    const cy = this.y0 + this.viewHmm / 2;
+    this.zoomMult = mult;
+    this.scale = this.baseScale * mult;
+    this.panning = this.viewWmm < this.worldW - 1 || this.viewHmm < this.worldH - 1;
+    this.tx = this.x0 = this.clampX(cx - this.viewWmm / 2);
+    this.ty = this.y0 = this.clampY(cy - this.viewHmm / 2);
+    this.vx = this.vy = 0;
   }
 
   get viewWmm(): number {

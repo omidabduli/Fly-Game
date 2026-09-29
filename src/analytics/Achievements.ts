@@ -32,11 +32,11 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'clean-kill', title: 'Surgical Strike', description: 'Catch a fly without breaking anything.', icon: '✨', test: (s) => s.cleanKills >= 1 },
   { id: 'wrecker', title: 'Elefant im Porzellanladen', description: 'Cause 1.000 € of damage chasing one fly.', icon: '🐘', test: (s) => s.maxRoundDamage >= 1000 },
   { id: 'window', title: 'Frische Luft', description: 'Shatter the Mensa window.', icon: '🪟', test: (s) => (s.destroyed.window ?? 0) >= 1 },
-  { id: 'laptop', title: 'Kein Backup', description: "Destroy Lukas's laptop.", icon: '💻', test: (s) => (s.destroyed.laptop ?? 0) >= 1 },
+  { id: 'laptop', title: 'Kein Backup', description: "Destroy Yuna's laptop.", icon: '💻', test: (s) => (s.destroyed.laptop ?? 0) >= 1 },
   { id: 'menu', title: 'Essen 2 ist aus', description: 'Smash the menu screen.', icon: '📺', test: (s) => (s.destroyed.menu ?? 0) >= 1 },
-  { id: 'currywurst', title: 'Currywurst-Killer', description: "Squash Jürgen's Currywurst.", icon: '🌭', test: (s) => (s.destroyed.currywurst ?? 0) >= 1 },
+  { id: 'currywurst', title: 'Currywurst-Killer', description: "Squash Marisol's Currywurst.", icon: '🌭', test: (s) => (s.destroyed.currywurst ?? 0) >= 1 },
   { id: 'schmerzensgeld', title: 'Schmerzensgeld', description: 'Hit someone with the swatter.', icon: '🤕', test: (s) => s.peopleHit >= 1 },
-  { id: 'beschwerde', title: 'Beschwerde eingereicht', description: 'Break Frau Dr. Schmidt’s glasses.', icon: '📝', test: (s) => (s.damaged.schmidt ?? 0) >= 1 },
+  { id: 'beschwerde', title: 'Beschwerde eingereicht', description: 'Break Leila’s sunglasses.', icon: '📝', test: (s) => (s.damaged.schmidt ?? 0) >= 1 },
 ];
 
 /** Locally stored achievements (structured so an online sync could be added). */

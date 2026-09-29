@@ -5,27 +5,21 @@ import { AudioEngine } from '../audio/AudioEngine';
 import { combineModulation } from '../config/params';
 import { FLY_STATE_NAMES, FlyState } from '../fly/Fly';
 import { clamp } from '../math/vec';
-import { type CircuitGraph, loadCircuit } from '../neuroscience/connectome/ConnectomeLoader';
 import { InputController, type PointerKind } from '../player/InputController';
 import { SwatterPhase } from '../player/Swatter';
-import { BrainView } from '../render/BrainView';
 import { Camera } from '../render/Camera';
-import { DebugOverlay } from '../render/DebugOverlay';
 import { Effects } from '../render/Effects';
 import { type FlyPose, FlyRenderer } from '../render/FlyRenderer';
 import { PeopleRenderer } from '../render/PeopleRenderer';
 import { drawBubble, RoomFx } from '../render/RoomFx';
 import { SceneRenderer } from '../render/SceneRenderer';
 import { type SwatterPose, SwatterRenderer } from '../render/SwatterRenderer';
-import { isDefaultLab, LAB_DEFAULTS, type LabSettings, labModulation } from '../sim/LabSettings';
-import { LabSimClient } from '../sim/LabSimClient';
 import { Haptics } from '../ui/Haptics';
-import { LabPanel } from '../ui/LabPanel';
-import { catchHTML, howToHTML, menuHTML, scienceHTML, statsHTML, titleHTML } from '../ui/screens';
+import { catchHTML, howToHTML, menuHTML, statsHTML, titleHTML } from '../ui/screens';
 import { UI } from '../ui/UI';
 import type { AttackResult } from './AttackTracker';
 import { type BreakKind, type DamageEvent, DamageSystem, formatMoney } from './DamageSystem';
-import { DifficultyController, modulationForLevel } from './DifficultyController';
+import { DifficultyController } from './DifficultyController';
 import { DIFFICULTIES, DIFFICULTY_ORDER, type DifficultyId, isDifficultyId } from './DifficultyModes';
 import { PeopleSystem } from './People';
 import { type ReplayClip, ReplaySystem } from './ReplaySystem';
@@ -86,10 +80,7 @@ export class Game {
   private readonly flyR = new FlyRenderer();
   private readonly swR = new SwatterRenderer();
   private readonly effects = new Effects();
-  private readonly brainView = new BrainView();
-  private readonly debug = new DebugOverlay();
   readonly ui: UI;
-  private readonly lab: LabPanel;
   readonly audio = new AudioEngine();
   private readonly input: InputController;
   readonly stats = new StatsManager();
@@ -97,8 +88,6 @@ export class Game {
   private readonly leaderboard = new LocalLeaderboard();
   readonly difficulty: DifficultyController;
   private readonly replay: ReplaySystem;
-  private readonly labSim = new LabSimClient();
-  private circuit: CircuitGraph | null = null;
   /** everything broken while chasing the current fly */
   readonly damage = new DamageSystem();
   private readonly roomFx: RoomFx;
@@ -114,10 +103,6 @@ export class Game {
   private lastBreakAt = -1;
 
   mode: Mode = 'title';
-  private showBrain = false;
-  private showDebug = false;
-  private labMode = false;
-  private labSettings: LabSettings = { ...LAB_DEFAULTS };
   private flySurvival = 0;
   private flyAttempts = 0;
   private flyStreak = 0;
@@ -128,11 +113,6 @@ export class Game {
   private fps = 60;
   private stepsThisFrame = 0;
   private pendingCapture: { result: AttackResult; at: number } | null = null;
-  /** smoothed pointer (aim) velocity in world mm/s, shown in the debug overlay */
-  private pointerVx = 0;
-  private pointerVy = 0;
-  private lastAimWX = NaN;
-  private lastAimWY = NaN;
   /** lowest damage bill on this difficulty before the current catch */
   private catchBest: number | null = null;
   /** brief ring that shows where the fly just landed */
@@ -180,7 +160,6 @@ export class Game {
     this.safeProbe.style.cssText =
       'position:fixed;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
     root.appendChild(this.safeProbe);
-    this.lab = new LabPanel(this.ui.labPanel, (s) => this.onLabChange(s));
     this.ui.setMuted(this.audio.muted);
     this.input = new InputController(this.canvas, {
       aim: (x, y) => this.onAim(x, y),
@@ -191,7 +170,7 @@ export class Game {
     this.sim.on((e) => {
       switch (e.type) {
         case 'strikeStart':
-          if (!this.labMode && this.mode === 'play') this.stats.recordSwing();
+          if (this.mode === 'play') this.stats.recordSwing();
           break;
         case 'swingStart':
           this.audio.whoosh(this.sim.swatter.speed);
@@ -204,7 +183,7 @@ export class Game {
           if (!e.hit) this.haptics.play('light');
           this.people.onImpact(e.x, e.y, e.surface.id);
           const personHit = e.surface.material === 'skin' || e.surface.material === 'cloth';
-          if (personHit && !this.labMode) this.stats.recordPersonHit();
+          if (personHit) this.stats.recordPersonHit();
           const broke = this.damage.impact(e.surface, e.x, e.y, sw.hx, sw.hy, e.speed, (id) => this.sim.scene.byId(id));
           if (broke) this.onBreak(broke);
           else if (personHit) {
@@ -230,7 +209,6 @@ export class Game {
       }
     });
     this.applyModulation(true);
-    this.showDebug = new URLSearchParams(location.search).has('debug');
     window.addEventListener('resize', () => this.resize());
     window.visualViewport?.addEventListener('resize', () => this.resize());
     document.addEventListener('visibilitychange', () => this.onVisibility());
@@ -244,9 +222,6 @@ export class Game {
         p.t = p.t0 + (Number(t.value) / 1000) * (p.t1 - p.t0);
       }
     });
-    loadCircuit(`${import.meta.env.BASE_URL}data/escape-circuit.json`)
-      .then((c) => (this.circuit = c))
-      .catch(() => (this.circuit = null));
     this.resize();
     this.aimSX = this.camera.viewW * 0.62;
     this.aimSY = this.camera.viewH * 0.55;
@@ -301,13 +276,6 @@ export class Game {
       this.applyKeyboardAim(dtReal);
       const aimWX = this.camera.toWorldX(this.aimSX);
       const aimWY = this.camera.toWorldY(this.aimSY);
-      if (dtReal > 0 && Number.isFinite(this.lastAimWX)) {
-        const k = Math.min(1, dtReal * 15);
-        this.pointerVx += ((aimWX - this.lastAimWX) / dtReal - this.pointerVx) * k;
-        this.pointerVy += ((aimWY - this.lastAimWY) / dtReal - this.pointerVy) * k;
-      }
-      this.lastAimWX = aimWX;
-      this.lastAimWY = aimWY;
       if (this.sim.swatter.active) sim.swatter.setTarget(aimWX, aimWY);
       this.acc += dtSim;
       const maxSteps = 120;
@@ -347,7 +315,6 @@ export class Game {
     const f = sim.fly;
     const frozen = sim.swatter.phase !== SwatterPhase.IDLE || this.mode === 'replay';
     this.camera.follow(f.pos.x, f.pos.y, dtReal, frozen);
-    if (this.showBrain) this.brainView.update(f.brain.activity(), dtReal, this.time);
     this.updateAudio();
     // Nothing moves behind an open menu, so redraw rarely there (saves battery on phones).
     if (!this.paused || this.mode === 'replay' || now - this.lastRender > 250) {
@@ -521,7 +488,6 @@ export class Game {
     this.effects.draw(ctx);
     if (showSwatter) this.swR.drawOver(ctx, swPose, cam);
     if (replayFrame && this.player) this.drawReplayOver(ctx, this.player, s);
-    if (this.showDebug && !replayFrame) this.debug.drawWorld(ctx, this.sim, s);
     // screen space
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (!replayFrame) {
@@ -531,28 +497,7 @@ export class Game {
       this.roomFx.drawScreen(ctx, cam, this.reducedMotion);
     }
     this.effects.drawScreen(ctx, cam);
-    const safe = this.safe;
-    if (this.showBrain && this.mode !== 'replay') {
-      const w = Math.min(380, cam.viewW - 20 - safe.left - safe.right);
-      const scale = Math.min(1, w / 380);
-      // On narrow screens the Lab panel is a bottom sheet, so the Brain View moves up.
-      const labSheet = this.lab.visible && cam.viewW <= 760;
-      const x = 10 + safe.left;
-      const y = labSheet ? Math.max(70, cam.insetTop + 8) : cam.viewH - BrainView.height(scale) - (this.touchDevice ? 14 : 10) - safe.bottom;
-      this.brainView.draw(ctx, x, y, 380, this.sim.fly.brain.activity(), this.sim.fly.brain.motor.last, FLY_STATE_NAMES[this.sim.fly.state], scale);
-    }
-    if (this.showDebug && !replayFrame) {
-      this.debug.drawText(ctx, 10 + safe.left, Math.max(70, cam.insetTop + 8), this.sim, {
-        fps: this.fps,
-        stepsPerFrame: this.stepsThisFrame,
-        difficulty: this.difficulty.level,
-        rollingSuccess: this.difficulty.rollingSuccess,
-        labMode: this.labMode,
-        pointerVx: this.pointerVx,
-        pointerVy: this.pointerVy,
-      });
-    }
-    if (replayFrame && this.player) this.drawReplayHud(ctx, this.player, replayFrame.threat);
+    if (replayFrame && this.player) this.drawReplayHud(ctx, this.player);
   }
 
   /** The fly's speech bubble, following it around. */
@@ -590,10 +535,8 @@ export class Game {
     this.roomFx.onDamage();
     this.people.onBreak(ev.owner, ev.kind === 'person' || ev.id === ev.owner);
     this.people.onDamage(this.damage.total);
-    if (!this.labMode) {
-      this.stats.recordDamage(ev, this.damage.total);
-      this.checkAchievements(null);
-    }
+    this.stats.recordDamage(ev, this.damage.total);
+    this.checkAchievements(null);
     this.ui.bumpDamage();
     this.updateHud();
   }
@@ -705,42 +648,45 @@ export class Game {
 
   private drawReplayOver(ctx: CanvasRenderingContext2D, p: ReplayPlayer, scale: number): void {
     const nowMs = p.t * 1000;
-    const fs = 11 / scale;
-    ctx.font = `600 ${fs}px ui-sans-serif, system-ui, sans-serif`;
-    for (const e of p.clip.events) {
-      if (e.ms > nowMs) continue;
-      const col =
-        e.kind === 'threat' ? '255,200,60' : e.kind === 'perceived' ? '255,160,60' : e.kind === 'command' ? '255,80,220' : e.kind === 'takeoff' ? '80,220,255' : e.kind === 'clear' ? '120,255,140' : '255,70,60';
-      ctx.fillStyle = `rgba(${col},0.95)`;
+    const fs = 14 / scale;
+    ctx.font = `500 ${fs}px "Instrument Sans", system-ui, sans-serif`;
+    const shown = p.clip.events.filter((e) => e.ms <= nowMs).slice(-3);
+    shown.forEach((e, i) => {
+      ctx.fillStyle = '#c15f3c';
+      ctx.strokeStyle = '#faf9f5';
+      ctx.lineWidth = 1 / scale;
       ctx.beginPath();
-      ctx.arc(e.x, e.y, 1.6, 0, Math.PI * 2);
+      ctx.arc(e.x, e.y, 2.4 / scale * 3, 0, Math.PI * 2);
       ctx.fill();
-      const label = `${e.ms > 0 ? '+' : ''}${e.ms.toFixed(0)} ms ${e.label}`;
-      const tw = ctx.measureText(label).width;
-      const lx = e.x + 3;
-      const ly = e.y - 3 - p.clip.events.indexOf(e) * fs * 1.25;
-      ctx.fillStyle = 'rgba(10,12,18,0.72)';
-      ctx.fillRect(lx - 1.5, ly - fs, tw + 3, fs * 1.3);
-      ctx.fillStyle = `rgb(${col})`;
-      ctx.fillText(label, lx, ly);
-    }
+      ctx.stroke();
+      const tw = ctx.measureText(e.label).width;
+      const lx = e.x + 8 / scale * 2;
+      const ly = e.y - (10 + i * 26) / scale;
+      ctx.globalAlpha = i === shown.length - 1 ? 1 : 0.65;
+      ctx.fillStyle = '#faf9f5';
+      ctx.beginPath();
+      ctx.roundRect(lx - 8 / scale, ly - fs * 1.05, tw + 16 / scale, fs * 1.7, 8 / scale);
+      ctx.fill();
+      ctx.fillStyle = '#141413';
+      ctx.fillText(e.label, lx, ly);
+      ctx.globalAlpha = 1;
+    });
   }
 
-  private drawReplayHud(ctx: CanvasRenderingContext2D, p: ReplayPlayer, threat: number): void {
+  private drawReplayHud(ctx: CanvasRenderingContext2D, p: ReplayPlayer): void {
     const cam = this.camera;
-    const ms = p.t * 1000;
-    const y = Math.max(90, cam.insetTop + 40);
+    const y = Math.max(96, cam.insetTop + 50);
+    const label = p.clip.result.hit ? 'Caught' : `Missed by ${p.clip.result.minGapMm.toFixed(0)} mm`;
     ctx.save();
-    ctx.font = '800 34px ui-sans-serif, system-ui, sans-serif';
+    ctx.font = '400 30px Newsreader, Georgia, serif';
     ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(0,0,0,0.45)';
-    const label = `${ms > 0.5 ? '+' : ms < -0.5 ? '−' : ''}${Math.abs(ms).toFixed(0)} ms`;
-    ctx.fillText(label, cam.viewW / 2 + 2, y + 2);
-    ctx.fillStyle = '#fff';
+    const w = ctx.measureText(label).width + 40;
+    ctx.fillStyle = 'rgba(250,249,245,0.94)';
+    ctx.beginPath();
+    ctx.roundRect(cam.viewW / 2 - w / 2, y - 34, w, 50, 25);
+    ctx.fill();
+    ctx.fillStyle = '#141413';
     ctx.fillText(label, cam.viewW / 2, y);
-    ctx.font = '600 12px ui-sans-serif, system-ui, sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    ctx.fillText(`threat level ${threat.toFixed(2)} · ${p.clip.result.hit ? 'CAUGHT' : `miss ${p.clip.result.minGapMm.toFixed(1)} mm`}`, cam.viewW / 2, y + 20);
     ctx.restore();
   }
 
@@ -754,6 +700,10 @@ export class Game {
         p.playing = false;
       }
     }
+    // the zoomed camera follows the fly
+    const fr = ReplaySystem.frame(p.clip, p.t);
+    const barMm = (this.ui.replayBar.getBoundingClientRect().height || 140) / this.camera.scale;
+    this.camera.follow(fr.fly.x, fr.fly.y + barMm * 0.5, dt, false);
     const u = (p.t - p.t0) / (p.t1 - p.t0);
     this.ui.setReplayState(p.t * 1000, u, p.playing, p.speed);
   }
@@ -767,8 +717,9 @@ export class Game {
     this.player = { clip, t: t0, t0, t1, speed: 0.05, playing: true, returnTo: this.mode === 'replay' ? 'play' : this.mode };
     this.mode = 'replay';
     this.ui.showReplayBar(clip.events, t0, t1);
-    // Frame the impact in the part of the view above the replay controls.
-    const barMm = (this.ui.replayBar.getBoundingClientRect().height || 220) / this.camera.scale;
+    // Zoom in on the action, above the replay controls.
+    this.camera.setZoom(2.1);
+    const barMm = (this.ui.replayBar.getBoundingClientRect().height || 140) / this.camera.scale;
     this.camera.centerOn(clip.result.impactX, clip.result.impactY + barMm * 0.5);
     this.stats.bump('replaysWatched');
   }
@@ -779,6 +730,7 @@ export class Game {
     this.player = null;
     this.ui.hideReplayBar();
     this.mode = back;
+    this.camera.setZoom(1);
     this.camera.centerOn(this.sim.fly.pos.x, this.sim.fly.pos.y);
     this.lastFrame = performance.now();
     // shown after the replay so the popup doesn't cover the replay controls
@@ -830,21 +782,11 @@ export class Game {
         if (this.mode === 'replay') this.action('replay-toggle');
         else this.onStrike(this.aimSX, this.aimSY, 'keyboard');
         break;
-      case 'b':
-        this.action('brain');
-        break;
-      case 'l':
-        this.action('lab');
-        break;
       case 'm':
         this.action('sound');
         break;
       case 'r':
         if (this.replay.clip && this.mode !== 'replay') this.openReplay();
-        break;
-      case 'd':
-      case '`':
-        this.action('debug');
         break;
       case 'h':
         this.action('howto');
@@ -862,9 +804,6 @@ export class Game {
       case 'howto':
         this.ui.openModal('howto', howToHTML(this.touchDevice), true);
         break;
-      case 'science':
-        this.ui.openModal('science', scienceHTML(this.circuit), true);
-        break;
       case 'stats':
         this.openStats();
         break;
@@ -873,9 +812,6 @@ export class Game {
           'menu',
           menuHTML({
             muted: this.audio.muted,
-            brain: this.showBrain,
-            debug: this.showDebug,
-            lab: this.labMode,
             difficulty: this.difficultyId,
             haptics: this.haptics.supported ? this.haptics.enabled : null,
           }),
@@ -899,28 +835,6 @@ export class Game {
         this.audio.setMuted(!this.audio.muted);
         this.ui.setMuted(this.audio.muted);
         if (this.ui.modalName === 'menu') this.action('menu');
-        break;
-      case 'brain':
-        this.showBrain = !this.showBrain;
-        this.ui.setToggle('brain', this.showBrain);
-        if (this.showBrain) {
-          this.stats.bump('brainViewOpened');
-          this.checkAchievements(null);
-        }
-        if (this.ui.modalName === 'menu') this.ui.closeModal();
-        break;
-      case 'debug':
-        this.showDebug = !this.showDebug;
-        if (this.ui.modalName === 'menu') this.ui.closeModal();
-        break;
-      case 'lab':
-        this.toggleLab();
-        break;
-      case 'lab-preset':
-        if (el?.dataset.preset) this.lab.applyPreset(el.dataset.preset);
-        break;
-      case 'lab-run':
-        void this.runLabSimulation();
         break;
       case 'replay':
         this.openReplay();
@@ -990,7 +904,7 @@ export class Game {
       return;
     }
     if (this.ui.modalName === 'menu') this.ui.closeModal();
-    if (changed && !this.labMode) this.newFly();
+    if (changed) this.newFly();
     else this.applyModulation(false);
   }
 
@@ -1024,41 +938,30 @@ export class Game {
     const fly = this.sim.fly;
     if (r.serious) {
       this.flyAttempts++;
-      if (!r.hit && !this.labMode) this.flyStreak++;
+      if (!r.hit) this.flyStreak++;
     }
-    if (this.labMode) {
-      if (r.serious) {
-        const bucket = isDefaultLab(this.labSettings) ? this.lab.player.normal : this.lab.player.modified;
-        bucket.attacks++;
-        if (!r.hit) bucket.escapes++;
-        this.lab.renderResults();
-      }
-    } else {
-      this.stats.recordAttack(r, this.flyStreak, FLY_STATE_NAMES[r.flyStateAtStrike]);
-      // only Hard adapts to the player; Easy and Medium are fixed
-      if (!DIFFICULTIES[this.difficultyId].modulation) {
-        this.difficulty.record(r);
-        saveJSON('difficulty', this.difficulty.state);
-        this.applyModulation(false);
-      }
-      if (r.serious && !r.hit) void this.leaderboard.submit({ category: 'closestMiss', value: r.minGapMm, date: new Date().toISOString() });
-      this.checkAchievements(r);
+    this.stats.recordAttack(r, this.flyStreak, FLY_STATE_NAMES[r.flyStateAtStrike]);
+    // only Hard adapts to the player; Easy and Medium are fixed
+    if (!DIFFICULTIES[this.difficultyId].modulation) {
+      this.difficulty.record(r);
+      saveJSON('difficulty', this.difficulty.state);
+      this.applyModulation(false);
     }
+    if (r.serious && !r.hit) void this.leaderboard.submit({ category: 'closestMiss', value: r.minGapMm, date: new Date().toISOString() });
+    this.checkAchievements(r);
     const close = r.hit || (r.serious && r.minGapMm <= 30);
     if (close) this.pendingCapture = { result: r, at: r.impactTime + 0.13 };
     if (r.hit) {
       this.mode = 'caught';
       this.catchBest = this.leaderboard.topSync('lowestDamage', 1, this.difficultyId)[0]?.value ?? null;
-      if (!this.labMode) {
-        const date = new Date().toISOString();
-        const detail = this.difficultyId;
-        this.stats.recordSurvival(this.flySurvival);
-        this.stats.recordCatch(this.difficultyId, this.damage.total);
-        void this.leaderboard.submit({ category: 'fewestAttemptsPerCatch', value: this.flyAttempts, date, detail });
-        void this.leaderboard.submit({ category: 'longestFlyStreak', value: this.flyStreak, date });
-        void this.leaderboard.submit({ category: 'lowestDamage', value: this.damage.total, date, detail });
-        this.checkAchievements(r);
-      }
+      const date = new Date().toISOString();
+      const detail = this.difficultyId;
+      this.stats.recordSurvival(this.flySurvival);
+      this.stats.recordCatch(this.difficultyId, this.damage.total);
+      void this.leaderboard.submit({ category: 'fewestAttemptsPerCatch', value: this.flyAttempts, date, detail });
+      void this.leaderboard.submit({ category: 'longestFlyStreak', value: this.flyStreak, date });
+      void this.leaderboard.submit({ category: 'lowestDamage', value: this.damage.total, date, detail });
+      this.checkAchievements(r);
       clearTimeout(this.catchTimer);
       this.catchTimer = window.setTimeout(() => this.showCatchScreen(), this.slowmo ? 1500 : 800);
       return;
@@ -1070,7 +973,7 @@ export class Game {
 
   /** Sometimes the fly gloats after a serious miss. */
   private maybeTaunt(r: AttackResult, alive: boolean): void {
-    if (!alive || this.tauntCooldown > 0 || this.labMode) return;
+    if (!alive || this.tauntCooldown > 0) return;
     const brokeSomething = this.lastBreakAt >= r.strikeStartTime;
     if (!r.serious && !brokeSomething) return;
     const gap = r.minGapMm;
@@ -1095,11 +998,8 @@ export class Game {
       'catch',
       catchHTML({
         attempts: Math.max(1, this.flyAttempts),
-        lab: this.labMode,
-        flyName: `Fly #${f.id} "${f.genome.nickname}"`,
-        traits: f.genome.traits,
+        flyName: f.genome.nickname,
         replay: !!this.replay.clip && this.replay.clip.result.hit,
-        airborne: !!this.sim.tracker.lastResult?.airborneHit,
         difficulty: this.difficultyId,
         receipt: this.damage.receipt,
         total: this.damage.total,
@@ -1134,7 +1034,7 @@ export class Game {
     this.flyStreak = 0;
     this.pendingCapture = null;
     this.mode = 'play';
-    if (!this.labMode) this.stats.bump('flies');
+    this.stats.bump('flies');
     this.applyModulation(true);
     this.lastFrame = performance.now();
     this.audio.flyIn();
@@ -1143,7 +1043,6 @@ export class Game {
   }
 
   private checkAchievements(r: AttackResult | null): void {
-    if (this.labMode && r) return;
     for (const a of this.achievements.check(this.stats.stats, r)) {
       this.ui.achievement(a);
       this.audio.achievement();
@@ -1151,64 +1050,8 @@ export class Game {
   }
 
   private applyModulation(immediate: boolean): void {
-    const P = this.sim.params.difficulty;
     const fixed = DIFFICULTIES[this.difficultyId].modulation;
-    const mod = this.labMode
-      ? combineModulation(modulationForLevel(0.5, P), labModulation(this.labSettings))
-      : combineModulation(fixed ?? this.difficulty.modulation());
-    this.sim.setModulation(mod, immediate);
-  }
-
-  // ---------------------------------------------------------------------------
-  // Lab Mode
-  // ---------------------------------------------------------------------------
-
-  private toggleLab(): void {
-    this.labMode = !this.labMode;
-    this.ui.setToggle('lab', this.labMode);
-    if (this.ui.modalName === 'menu') this.ui.closeModal();
-    if (this.labMode) {
-      this.lab.settings = { ...this.labSettings };
-      this.lab.open();
-      this.stats.bump('labExperiments');
-      this.checkAchievements(null);
-      if (this.mode === 'title') this.startPlay();
-    } else {
-      this.lab.close();
-    }
-    this.applyModulation(false);
-    this.updateHud();
-  }
-
-  private onLabChange(s: LabSettings): void {
-    this.labSettings = { ...s };
-    this.applyModulation(false);
-  }
-
-  private async runLabSimulation(): Promise<void> {
-    if (this.lab.running) return;
-    this.lab.running = true;
-    this.lab.progress = 0;
-    this.lab.renderResults();
-    const seed = 1234;
-    const P = this.sim.params.difficulty;
-    void P;
-    try {
-      if (!this.lab.normal) {
-        this.lab.normal = await this.labSim.run(600, seed, 0.5, {}, (u) => {
-          this.lab.progress = u * 0.5;
-          this.lab.renderResults();
-        });
-      }
-      this.lab.modified = await this.labSim.run(600, seed, 0.5, labModulation(this.labSettings), (u) => {
-        this.lab.progress = 0.5 + u * 0.5;
-        this.lab.renderResults();
-      });
-    } catch {
-      /* keep previous results */
-    }
-    this.lab.running = false;
-    this.lab.renderResults();
+    this.sim.setModulation(combineModulation(fixed ?? this.difficulty.modulation()), immediate);
   }
 
   // ---------------------------------------------------------------------------
@@ -1216,14 +1059,14 @@ export class Game {
   private updateHud(): void {
     if (this.mode === 'title') return;
     const f = this.sim.fly;
-    if (!this.labMode && this.mode === 'play' && f.alive) this.stats.recordSurvival(this.flySurvival);
+    if (this.mode === 'play' && f.alive) this.stats.recordSurvival(this.flySurvival);
     const d = DIFFICULTIES[this.difficultyId];
     this.ui.setHud(
       formatMoney(this.damage.total),
       this.flyAttempts,
-      this.labMode ? 'lab' : d.id,
-      this.labMode ? 'LAB MODE' : `${d.icon} ${d.label.toUpperCase()}`,
-      `Fly #${f.id} · ${f.genome.nickname}`,
+      d.id,
+      d.label,
+      f.genome.nickname,
     );
   }
 
