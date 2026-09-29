@@ -29,6 +29,8 @@ export const POSES = [
 ] as const;
 export type Pose = (typeof POSES)[number];
 
+const STARTERS = ['neutral', 'talking', 'happy', 'angry', 'blink'] as const;
+
 /** Where a sprite sits on the screen and how big it is. */
 export interface SpriteLayout {
   /** mm per pixel of the 1024 x 1536 source canvas */
@@ -68,23 +70,44 @@ export class SpriteCharacter {
   private switchAt = 0;
 
   constructor(
-    baseUrl: string,
+    private readonly baseUrl: string,
     readonly name: string,
     private readonly layout: SpriteLayout,
   ) {
-    for (const pose of POSES) {
-      const img = new Image();
-      img.onload = () => {
-        if (pose === 'neutral' || pose === 'talking' || pose === 'happy' || pose === 'angry' || pose === 'blink') this.starters++;
-      };
-      img.onerror = () => this.images.delete(pose); // an optional pose that doesn't exist (yet)
-      img.src = `${baseUrl}characters/${name}/${name}_${pose}.webp`;
-      this.images.set(pose, img);
-    }
+    // the five starter poses load right away; the rest come later (see loadExtras)
+    for (const pose of STARTERS) this.load(pose);
+  }
+
+  private load(pose: Pose): void {
+    const img = new Image();
+    img.onload = () => {
+      if ((STARTERS as readonly string[]).includes(pose)) this.starters++;
+    };
+    img.onerror = () => this.images.delete(pose); // an optional pose that doesn't exist (yet)
+    img.src = `${this.baseUrl}characters/${this.name}/${this.name}_${pose}.webp`;
+    this.images.set(pose, img);
+  }
+
+  /**
+   * Load the other poses one at a time in the background, so a phone never
+   * has to decode all of them at once (every image is a few MB in memory).
+   */
+  loadExtras(startDelayMs = 0): void {
+    if (this.extrasStarted) return;
+    this.extrasStarted = true;
+    const extras = POSES.filter((p) => !(STARTERS as readonly string[]).includes(p));
+    extras.forEach((pose, i) => window.setTimeout(() => this.load(pose), startDelayMs + i * 220));
+  }
+
+  private extrasStarted = false;
+
+  /** 0..1 progress of the starter poses. */
+  get progress(): number {
+    return Math.min(1, this.starters / STARTERS.length);
   }
 
   get ready(): boolean {
-    return this.starters >= 5;
+    return this.starters >= STARTERS.length;
   }
 
   private has(pose: Pose): boolean {

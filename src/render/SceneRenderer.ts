@@ -174,8 +174,10 @@ export class SceneRenderer {
     const iy1 = Math.min(wy0 + cam.viewHmm, L.y1);
     if (ix1 <= ix0 || iy1 <= iy0) return;
     const s = cam.scale * dpr;
+    // hard pixels for the retro look, but only for this copy: people and effects are drawn smooth
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(L.canvas as CanvasImageSource, (ix0 + M) * k, (iy0 - L.y0) * k, (ix1 - ix0) * k, (iy1 - iy0) * k, (ix0 - wx0) * s, (iy0 - wy0) * s, (ix1 - ix0) * s, (iy1 - iy0) * s);
+    ctx.imageSmoothingEnabled = true;
   }
 
   private obj(id: string): SurfaceObject {

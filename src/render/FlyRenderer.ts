@@ -25,6 +25,9 @@ export interface FlyPose {
   tint: number;
 }
 
+/** how much bigger than life the fly is drawn (the physics is unchanged) */
+const FLY_VIS = 1.85;
+
 // Leg anchor (on thorax) and resting foot positions in body mm (x forward).
 const LEGS: [number, number, number, number][] = [
   [0.62, 0.22, 1.3, 0.72],
@@ -51,7 +54,8 @@ export class FlyRenderer {
       ctx.arc(sx, sy, 1.6 * blur, 0, Math.PI * 2);
       ctx.fill();
     }
-    const s = 1 + h / 450;
+    // drawn larger than life so it can be found against a busy room
+    const s = (1 + h / 450) * FLY_VIS;
     const speed = Math.hypot(p.vx, p.vy);
     // --- motion trail (fast flight shows up as a streak, not a jump) ---
     if (!dead && speed > 180) {
@@ -63,7 +67,7 @@ export class FlyRenderer {
       g.addColorStop(1, `rgba(60,40,25,${Math.min(0.45, speed / 2500)})`);
       ctx.strokeStyle = g;
       ctx.lineCap = 'round';
-      ctx.lineWidth = 1.3 * s;
+      ctx.lineWidth = 1.3 * s * 0.7;
       ctx.beginPath();
       ctx.moveTo(tx, ty);
       ctx.lineTo(p.x, p.y);
@@ -72,17 +76,18 @@ export class FlyRenderer {
     ctx.save();
     ctx.translate(p.x, p.y);
     // visibility halo (helps on dark surfaces)
-    const halo = ctx.createRadialGradient(0, 0, 0.5, 0, 0, 2.6 * s);
-    halo.addColorStop(0, 'rgba(255,250,235,0.22)');
+    const halo = ctx.createRadialGradient(0, 0, 0.5, 0, 0, 2.7 * s);
+    halo.addColorStop(0, 'rgba(255,250,235,0.3)');
+    halo.addColorStop(0.55, 'rgba(255,250,235,0.12)');
     halo.addColorStop(1, 'rgba(255,250,235,0)');
     ctx.fillStyle = halo;
     ctx.beginPath();
-    ctx.arc(0, 0, 2.6 * s, 0, Math.PI * 2);
+    ctx.arc(0, 0, 2.7 * s, 0, Math.PI * 2);
     ctx.fill();
     ctx.rotate(p.heading);
     const bank = Math.cos(Math.max(-1.35, Math.min(1.35, p.roll)));
     ctx.scale(s, s * (0.35 + 0.65 * Math.abs(bank)));
-    const lw = Math.max(0.1, 0.75 / pxPerMm);
+    const lw = Math.max(0.05, 0.75 / (pxPerMm * s));
     if (dead) {
       this.drawDead(ctx, lw);
       ctx.restore();
@@ -93,11 +98,13 @@ export class FlyRenderer {
     if (!flying || p.legExtension > 0.1 || p.state === FlyState.TAKEOFF) this.drawLegs(ctx, p, lw, flying);
     // wing blur sits behind the body in flight
     if (flying) this.drawWingBlur(ctx, p, time);
+    // a thin cream outline keeps the body readable on dark and brown things
     // abdomen with bands
     const tintR = 176 + p.tint * 18;
     ctx.fillStyle = `rgb(${tintR | 0},${(128 + p.tint * 10) | 0},70)`;
     ctx.beginPath();
     ctx.ellipse(-0.55, 0, 0.82, 0.5, 0, 0, Math.PI * 2);
+    this.outline(ctx);
     ctx.fill();
     ctx.fillStyle = 'rgba(55,30,15,0.75)';
     for (const bx of [-0.25, -0.6, -0.95]) {
@@ -109,6 +116,7 @@ export class FlyRenderer {
     ctx.fillStyle = `rgb(${(150 + p.tint * 15) | 0},${(104 + p.tint * 8) | 0},58)`;
     ctx.beginPath();
     ctx.ellipse(0.45, 0, 0.55, 0.46, 0, 0, Math.PI * 2);
+    this.outline(ctx);
     ctx.fill();
     ctx.fillStyle = 'rgba(255,240,210,0.25)';
     ctx.beginPath();
@@ -118,6 +126,7 @@ export class FlyRenderer {
     ctx.fillStyle = '#8a5c34';
     ctx.beginPath();
     ctx.arc(1.05, 0, 0.33, 0, Math.PI * 2);
+    this.outline(ctx);
     ctx.fill();
     ctx.fillStyle = '#b3202a';
     ctx.beginPath();
@@ -132,6 +141,17 @@ export class FlyRenderer {
     // at rest the translucent wings lie folded over the abdomen
     if (!flying) this.drawFoldedWings(ctx, p);
     ctx.restore();
+  }
+
+  /** Two thin outlines (light outside, dark inside): the body reads on pale and on dark things alike. */
+  private outline(ctx: Ctx): void {
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 0.5;
+    ctx.strokeStyle = 'rgba(255,246,228,0.9)';
+    ctx.stroke();
+    ctx.lineWidth = 0.22;
+    ctx.strokeStyle = 'rgba(38,24,16,0.95)';
+    ctx.stroke();
   }
 
   private drawLegs(ctx: Ctx, p: FlyPose, lw: number, flying: boolean): void {

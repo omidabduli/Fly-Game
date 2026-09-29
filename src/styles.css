@@ -192,6 +192,10 @@ input,
 .btn:hover {
   background: var(--surface);
 }
+.btn:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
 .btn.primary {
   background: var(--ink);
   color: var(--bg);

@@ -2,8 +2,8 @@ import { type PersonId, TABLE_Y } from '../environment/Scene';
 import type { DamageSystem } from '../game/DamageSystem';
 import type { PeopleSystem, PersonState } from '../game/People';
 import type { Camera } from './Camera';
-import { SpriteCharacter, type SpriteLayout } from './SpriteCharacter';
-import { drawBubble } from './RoomFx';
+import { SpriteCharacter } from './SpriteCharacter';
+import { bubbleWidth, drawBubble } from './RoomFx';
 
 type Ctx = CanvasRenderingContext2D;
 
@@ -27,6 +27,15 @@ const LOOKS: Record<PersonId, Look> = {
 
 const HAND_R = 5.2;
 
+/** Who sits where: the folder in public/characters and where the eyes are in the picture (px). */
+export const CAST: Partial<Record<PersonId, { sprite: string; eyeY: number }>> = {
+  juergen: { sprite: 'marisol', eyeY: 300 },
+  schmidt: { sprite: 'leila', eyeY: 292 },
+  lukas: { sprite: 'aro', eyeY: 238 },
+  lena: { sprite: 'character', eyeY: 287 },
+  mia: { sprite: 'nora', eyeY: 290 },
+};
+
 const easeInOut = (u: number) => u * u * (3 - 2 * u);
 
 /**
@@ -40,14 +49,20 @@ export class PeopleRenderer {
 
   constructor() {
     const base = import.meta.env.BASE_URL;
-    const layout = (eyeY: number): SpriteLayout => ({ mmPerPx: 0.142, eyeY });
-    this.sprites = {
-      juergen: new SpriteCharacter(base, 'marisol', layout(300)),
-      schmidt: new SpriteCharacter(base, 'leila', layout(292)),
-      lukas: new SpriteCharacter(base, 'aro', layout(238)),
-      mia: new SpriteCharacter(base, 'nora', layout(290)),
-      lena: new SpriteCharacter(base, 'character', layout(287)),
-    };
+    const sprites: Partial<Record<PersonId, SpriteCharacter>> = {};
+    for (const [id, c] of Object.entries(CAST) as [PersonId, { sprite: string; eyeY: number }][]) sprites[id] = new SpriteCharacter(base, c.sprite, { mmPerPx: 0.142, eyeY: c.eyeY });
+    this.sprites = sprites;
+  }
+
+  /** 0..1: how much of the characters' first images have loaded. */
+  get loadProgress(): number {
+    const all = Object.values(this.sprites);
+    return all.reduce((a, sp) => a + sp.progress, 0) / Math.max(1, all.length);
+  }
+
+  /** Start loading the extra poses (after the game has started). */
+  loadExtras(): void {
+    Object.values(this.sprites).forEach((sp, i) => sp.loadExtras(i * 400));
   }
 
   /** Heads, shoulders and upper arms (clipped at the table edge / behind the counter). */
@@ -887,18 +902,32 @@ export class PeopleRenderer {
 
   /** What they say, in screen space (CSS px). */
   drawBubbles(ctx: Ctx, people: PeopleSystem, cam: Camera, reducedMotion: boolean): void {
-    for (const p of people.people) {
+    // bubbles that would cover each other are stacked instead
+    const placed: { l: number; r: number; y: number }[] = [];
+    for (const p of [...people.people].sort((a, b) => a.seat.x - b.seat.x)) {
       const b = p.bubble;
       if (!b) continue;
       const s = p.seat;
       const x = cam.sx(s.x);
-      const y = cam.sy(s.y - s.ry - (s.staff ? 10 : 4));
+      let y = cam.sy(s.y - s.ry - (s.staff ? 10 : 4));
       if (x < -60 || x > cam.viewW + 60 || y < -40 || y > cam.viewH + 40) continue;
+      const lines: [string, string] = [p.def.name, b.text];
+      const w = bubbleWidth(ctx, lines);
+      const l = x - w / 2;
+      const r = x + w / 2;
+      y = Math.max(cam.insetTop + 62, y);
+      for (let tries = 0; tries < 3; tries++) {
+        const hit = placed.find((q) => q.l < r && q.r > l && Math.abs(q.y - y) < 54);
+        if (!hit) break;
+        y = hit.y - 56;
+      }
+      y = Math.max(cam.insetTop + 62, y);
+      placed.push({ l, r, y });
       const u = b.t / b.life;
       const alpha = u < 0.06 ? u / 0.06 : u > 0.85 ? (1 - u) / 0.15 : 1;
       const k = Math.min(1, b.t / 0.18);
       const pop = reducedMotion ? 1 : 0.55 + 0.45 * (1 + 2.4 * (k - 1) ** 3 + 1.4 * (k - 1) ** 2);
-      drawBubble(ctx, x, Math.max(cam.insetTop + 62, y), [p.def.name, b.text], alpha, pop, cam.viewW);
+      drawBubble(ctx, x, y, lines, alpha, pop, cam.viewW);
     }
   }
 }

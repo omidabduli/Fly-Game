@@ -29,6 +29,20 @@ const MESSAGES: { min: number; app: string; from: string; text: string }[] = [
   { min: 900, app: '📰', from: 'Eilmeldung', text: 'Chaos in der Uni-Mensa: Fliege überlebt' },
 ];
 
+/** Width of a bubble for these lines (same fonts as drawBubble). */
+export function bubbleWidth(ctx: Ctx, lines: [string, string?]): number {
+  const [head, body] = lines;
+  const name = body ? head : '';
+  const text = body ?? head;
+  ctx.save();
+  ctx.font = `500 10.5px ${MONO}`;
+  const w1 = name ? ctx.measureText(name.toUpperCase()).width + name.length * 0.8 : 0;
+  ctx.font = `500 14px ${SANS}`;
+  const w2 = ctx.measureText(text).width;
+  ctx.restore();
+  return Math.max(w1, w2) + 26;
+}
+
 /** Screen-space speech bubble on paper, with a small tail pointing down at (x, y). */
 export function drawBubble(ctx: Ctx, x: number, y: number, lines: [string, string?], alpha: number, scale: number, viewW: number, dark = false): void {
   ctx.save();

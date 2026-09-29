@@ -106,6 +106,10 @@ export class Game {
   mode: Mode = 'title';
   private flySurvival = 0;
   private flyAttempts = 0;
+  /** every swing at the current fly (the HUD number) */
+  private flySwings = 0;
+  /** seconds left to point out the fly to a new player */
+  private hintT = 0;
   private flyStreak = 0;
   private aimSX = 0;
   private aimSY = 0;
@@ -139,7 +143,7 @@ export class Game {
     this.sim = new Simulation();
     // Phones/tablets: zoom in further so the fly stays comfortably visible (view pans).
     const coarse = matchMedia('(pointer: coarse)').matches;
-    this.camera = new Camera(this.sim.scene.width, this.sim.scene.height, coarse ? 2.9 : 1.8);
+    this.camera = new Camera(this.sim.scene.width, this.sim.scene.height, coarse ? 2.5 : 1.8);
     this.scene = new SceneRenderer(this.sim.scene, this.damage);
     this.roomFx = new RoomFx(this.sim.scene);
     this.roomFx.onNotice = () => {
@@ -172,6 +176,8 @@ export class Game {
       switch (e.type) {
         case 'strikeStart':
           this.idleBuzzIn = 30 + Math.random() * 15;
+          this.hintT = 0;
+          if (this.mode === 'play') this.flySwings++;
           if (this.mode === 'play') this.stats.recordSwing();
           break;
         case 'swingStart':
@@ -231,6 +237,25 @@ export class Game {
     this.sim.swatter.reset(this.camera.toWorldX(this.aimSX), this.camera.toWorldY(this.aimSY));
     this.camera.centerOn(this.sim.fly.pos.x, this.sim.fly.pos.y);
     this.ui.showTitle(titleHTML(this.stats.stats, this.difficultyId));
+    this.gateOnLoading();
+  }
+
+  /** The Play button waits until the characters' first images are in (at most a few seconds). */
+  private gateOnLoading(): void {
+    const btn = this.root.querySelector<HTMLButtonElement>('[data-action=start]');
+    if (!btn || this.peopleR.loadProgress >= 1) return;
+    btn.disabled = true;
+    const label = btn.textContent;
+    const started = performance.now();
+    const tick = window.setInterval(() => {
+      const p = this.peopleR.loadProgress;
+      const timedOut = performance.now() - started > 8000;
+      if (p >= 1 || timedOut) {
+        window.clearInterval(tick);
+        btn.disabled = false;
+        btn.textContent = label;
+      } else btn.textContent = `Loading ${Math.round(p * 100)}%`;
+    }, 120);
   }
 
   start(): void {
@@ -304,6 +329,7 @@ export class Game {
       this.roomFx.update(dtSim, this.damage, this.effects);
       this.updatePeople(dtSim);
       this.tauntCooldown = Math.max(0, this.tauntCooldown - dtReal);
+      if (this.hintT > 0) this.hintT = Math.max(0, this.hintT - dtReal);
       if (this.taunt) {
         this.taunt.t += dtReal;
         if (this.taunt.t >= this.taunt.life || !sim.fly.alive) this.taunt = null;
@@ -520,10 +546,38 @@ export class Game {
       this.drawOffscreenIndicator(ctx);
       if (this.mode !== 'title') this.peopleR.drawBubbles(ctx, this.people, cam, this.reducedMotion);
       this.drawTaunt(ctx);
+      this.drawHint(ctx);
       this.roomFx.drawScreen(ctx, cam, this.reducedMotion);
     }
     this.effects.drawScreen(ctx, cam);
     if (replayFrame && this.player) this.drawReplayHud(ctx, this.player);
+  }
+
+  /** A pulsing ring around the fly and a short prompt, for new players. */
+  private drawHint(ctx: CanvasRenderingContext2D): void {
+    if (this.hintT <= 0 || this.mode !== 'play' || this.paused) return;
+    const f = this.sim.fly;
+    if (!f.alive) return;
+    const cam = this.camera;
+    const x = cam.sx(f.pos.x);
+    const y = cam.sy(f.pos.y);
+    if (x < 0 || y < cam.insetTop || x > cam.viewW || y > cam.viewH) return;
+    const fade = Math.min(1, this.hintT / 1.5);
+    const r = 16 + 4 * Math.sin(this.time * 5);
+    ctx.save();
+    ctx.globalAlpha = fade;
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#c15f3c';
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(250,249,245,0.9)';
+    ctx.beginPath();
+    ctx.arc(x, y, r + 6 + 3 * Math.sin(this.time * 5 + 1), 0, Math.PI * 2);
+    ctx.stroke();
+    drawBubble(ctx, x, Math.max(cam.insetTop + 60, y - r - 6), [this.touchDevice ? 'There it is. Tap to swat!' : 'There it is. Click to swat!'], fade, 1, cam.viewW);
+    ctx.restore();
   }
 
   /** The fly's speech bubble, following it around. */
@@ -908,11 +962,12 @@ export class Game {
     sw.reset(this.camera.toWorldX(this.aimSX), this.camera.toWorldY(this.aimSY));
     this.lastFrame = performance.now();
     this.haptics.play('light');
-    // how to play: only until you've swung a few times
-    if (this.stats.stats.swings < 5) {
-      if (this.touchDevice) this.ui.toast('Drag to aim, tap to swat', 'Careful: people, plates and the laptop cost money!', 'info', false);
-      else this.ui.toast('Move to aim, click to swat', 'Careful: people, plates and the laptop cost money!', 'info', false);
-    }
+    this.peopleR.loadExtras();
+    // new players: point out the fly, and suggest landscape on a phone held upright
+    const firstTime = this.stats.stats.swings < 3;
+    if (firstTime) this.hintT = 12;
+    if (this.touchDevice && innerHeight > innerWidth * 1.15) this.ui.toast('Tip: turn your phone sideways', 'You will see the whole room and everyone in it.', 'info', false);
+    else if (this.stats.stats.swings < 5) this.ui.toast(this.touchDevice ? 'Drag to aim, tap to swat' : 'Move to aim, click to swat', 'Careful: people, plates and the laptop cost money.', 'info', false);
     this.people.onNewFly();
     this.updateHud();
   }
@@ -1022,7 +1077,7 @@ export class Game {
     this.ui.openModal(
       'catch',
       catchHTML({
-        attempts: Math.max(1, this.flyAttempts),
+        attempts: Math.max(1, this.flySwings),
         flyName: f.genome.nickname,
         replay: !!this.replay.clip && this.replay.clip.result.hit,
         difficulty: this.difficultyId,
@@ -1056,6 +1111,7 @@ export class Game {
     this.sim.spawnFly({ at: 'edge' });
     this.flySurvival = 0;
     this.flyAttempts = 0;
+    this.flySwings = 0;
     this.flyStreak = 0;
     this.pendingCapture = null;
     this.mode = 'play';
@@ -1088,7 +1144,7 @@ export class Game {
     const d = DIFFICULTIES[this.difficultyId];
     this.ui.setHud(
       formatMoney(this.damage.total),
-      this.flyAttempts,
+      this.flySwings,
       d.id,
       d.label,
       f.genome.nickname,
