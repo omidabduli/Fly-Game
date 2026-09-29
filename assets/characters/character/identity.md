@@ -1,30 +1,9 @@
-# Game character sprite manifest
+# Lena (sprite folder: `character`)
 
-## Observed identity
-
-- Clearly adult woman with a tapered oval face, blue-gray eyes, dark defined brows, fair warm skin, light freckles, full pink lips, and dark brown center-parted layered hair.
-- Polished semi-realistic 3D rendering style with direct front-facing camera and even studio lighting.
-
-## User-directed game design
-
-- Seated presentation for placement behind a table.
-- Framing extends from the hair to below the belly and includes both complete forearms and hands.
-- Fuller but natural body proportions.
-- Hot-weather clothing suitable for approximately 40 C: coral sleeveless cropped woven top with turquoise-and-cream embroidered trim and light cream linen shorts.
-- Four expression states: neutral, talking, happy, and angry.
-- One transparent PNG per state.
-
-## Locked production properties
-
-- Canvas: 1024 x 1536 pixels, 2:3 portrait.
-- Genuine alpha transparency; no baked background.
-- Identical body pose, hand pose, clothing, scale, camera, and framing across all four files.
-- Filename prefix is provisional because the character's name was not supplied.
-
-## Provisional traits
-
-- Lower body below the shorts, footwear, rear view, profile anatomy, and any hidden markings remain undefined.
-
-## Do not change
-
-- Face geometry, apparent adult age, eye color, freckles, hairstyle, body proportions, outfit construction and palette, seated pose, hand placement, lighting, framing, or transparency.
+- **Age:** 29; **gender:** woman.
+- **Role:** the direct, capable food-counter worker who keeps the Bremen Mensa moving.
+- **Personality:** practical, observant, and protective of her food and equipment. She speaks plainly and has a dry, no-nonsense sense of humor. When annoyed, she becomes quiet and tightly composed; when startled, she guards her space before speaking.
+- **Distinctive movement:** compact, guarded reactions; a controlled folded-arm glare; a quick flat-palmed shoo; an embarrassed forehead-covering facepalm. Her laugh is brief and private, not a broad performance.
+- **Visual identity:** fair warm skin with light freckles, blue-gray eyes, dark center-parted layered hair, coral embroidered sleeveless top, and ivory linen shorts.
+- **Food cue:** a small browned bratwurst bite on her fork.
+- **Sprite contract:** transparent 1024 × 1536 PNGs, consistent face, hair, outfit, lighting, and camera. Pose variation belongs in posture, expression, and hand placement.

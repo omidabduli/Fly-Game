@@ -24,8 +24,8 @@ export interface PersonDef {
 }
 
 /**
- * The women at the table, and Lena at the food counter. (The ids are the seat
- * names from the original scene: juergen = Marisol, schmidt = Leila, lukas = Yuna,
+ * The diners, and Lena at the food counter. (The ids are the seat
+ * names from the original scene: juergen = Marisol, schmidt = Leila, lukas = Aro,
  * mia = Nora, meyer = Lena.)
  */
 export const PEOPLE: Record<PersonId, PersonDef> = {
@@ -67,20 +67,20 @@ export const PEOPLE: Record<PersonId, PersonDef> = {
   },
   lukas: {
     id: 'lukas',
-    name: 'Yuna',
+    name: 'Aro',
     shooAfter: [3, 5.5],
     lines: {
-      idle: ['Eduroam ist wieder down. Natürlich.', 'Noch 12 Prozent Akku.', 'Backup läuft. Hoffentlich.', 'Ich schreib nur kurz was fertig.', 'Mate. Schon wieder.'],
-      flyOnMe: ['Ich bin kein Server.', 'Hallo? Runter da.', 'Bitte nicht.'],
-      flyOnFood: ['Nicht auf meine Brezel.', 'Das ist mein Essen. Meins.', 'Das war unnötig.'],
-      nearMiss: ['Interessante Flugbahn.', 'Präzision sieht anders aus.', 'Knapp. Statistisch gesehen.'],
-      swatterOverMe: ['Ich bin nicht dein Ziel.', 'Ernsthaft?'],
-      hurt: ['AUA. Das ist dokumentiert.', 'Mein Kopf ist keine Tastatur!', 'Ich schick die Rechnung.'],
-      mineBroken: ['MEIN LAPTOP!!', 'Meine Bachelorarbeit!! 😱', 'Hast du ein Backup?!', 'Meine Mate!'],
-      otherBroken: ['Ich hab’s gefilmt.', 'Das geht viral.', 'Oof.'],
-      kill: ['Effizient.', 'Ordentlich.', 'Na also.'],
-      bigDamage: ['Ich rechne: sehr teuer.', 'Das kommt auf die Versicherung.'],
-      newFly: ['Runde zwei. Ich bin bereit.', 'Da ist sie.'],
+      idle: ['Ich hab Zeit. Die Fliege offenbar auch.', 'Die Brezel ist noch warm. Alles gut.', 'Sonne, Mensa, Fliegen. Der Sommer ist komplett.', 'Ich erzähl euch später, wo ich das Hemd gefunden hab.', 'Erst Kaffee, dann Weltrettung.'],
+      flyOnMe: ['Na, Kumpel. Falscher Platz.', 'Schöne Landung. Jetzt wieder los.', 'Wir kennen uns nicht gut genug.'],
+      flyOnFood: ['Lass die Brezel in Ruhe, Chef.', 'Die ist mit Senf. Kein guter Landeplatz.', 'Ich teil gern. Mit Menschen.'],
+      nearMiss: ['Knapp am Ärmel vorbei.', 'Das war fast elegant.', 'Noch ein Versuch, Künstler?'],
+      swatterOverMe: ['Über mir ist auch noch Luft.', 'Ganz ruhig, ich bleib sitzen.'],
+      hurt: ['Autsch. Das war persönlich.', 'Meine Frisur war schon kompliziert genug.', 'Ich brauch kurz ’ne Sekunde.'],
+      mineBroken: ['Meine Brezel! Jetzt ist sie Kunst.', 'Der Kaffee ist auch hin. Stark.', 'Das Hemd hat’s geschafft. Die Tasse nicht.'],
+      otherBroken: ['Na, das war ein teurer Witz.', 'Ich hätte die Tasse festgehalten.', 'Ups. Ich sag nichts.'],
+      kill: ['Sauber. Respekt.', 'Und Feierabend für die Fliege.', 'Nicht schlecht, ehrlich.'],
+      bigDamage: ['Okay, das wird langsam teuer.', 'Da ist dein Mittagessenbudget hin.'],
+      newFly: ['Sie hat Verstärkung geholt.', 'Na gut. Noch eine Runde.'],
     },
   },
   mia: {
@@ -125,7 +125,7 @@ export const PEOPLE: Record<PersonId, PersonDef> = {
 const DIALOGUES: [PersonId, string][][] = [
   [['juergen', 'Werder gewinnt am Samstag, ich wette!'], ['lukas', 'Statistisch unwahrscheinlich.'], ['juergen', 'Lebenslang Grün-Weiß!']],
   [['mia', 'Ist das etwa Currywurst? 🤢'], ['juergen', 'Das ist Kulturgut, Schatz!']],
-  [['schmidt', 'Yuna? Du warst nicht in meiner Vorlesung.'], ['lukas', 'Eduroam war down.'], ['schmidt', 'Die Vorlesung war im Hörsaal.']],
+  [['schmidt', 'Aro? Du warst nicht in meiner Vorlesung.'], ['lukas', 'Ich war da. Nur ein bisschen weiter hinten.'], ['schmidt', 'Das erklärt die Sonnenbrille.']],
   [['meyer', 'Essen zwei ist aus!'], ['juergen', 'Schon wieder?!']],
   [['mia', 'Regnet es draußen?'], ['juergen', 'Wir sind in Bremen. Natürlich.']],
   [['juergen', 'Moin!'], ['meyer', 'Moin moin!'], ['schmidt', 'Einmal Moin reicht.']],

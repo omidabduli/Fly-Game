@@ -58,7 +58,7 @@ export function howToHTML(touch: boolean): string {
     <div><dt>Aim and swat</dt><dd>${touch ? 'Drag to aim, tap to swat.' : 'Move the mouse to aim, click to swat. Arrow keys and Space work too.'}</dd></div>
     <div><dt>Watch the outline</dt><dd>The dashed shape under the swatter is where it lands. The fly sees you coming, so swing fast.</dd></div>
     <div><dt>Mind the bill</dt><dd>Plates, phones, windows and people all cost money. Catch the fly for 0 € to get a clean receipt.</dd></div>
-    <div><dt>The regulars</dt><dd>Marisol, Leila, Yuna and Nora are having lunch. Lena runs the counter. Nora likes the fly.</dd></div>
+    <div><dt>The regulars</dt><dd>Marisol, Leila, Aro and Nora are having lunch. Lena runs the counter. Nora likes the fly.</dd></div>
   </dl>
   <div class="btn-row"><button class="btn primary" data-action="close">Got it</button></div>`;
 }

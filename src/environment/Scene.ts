@@ -175,7 +175,7 @@ export function buildMensaLayout(): SurfaceDef[] {
     { id: 'cup-rim', label: 'coffee cup', material: 'ceramic', shape: ellipse(schmidt.x + 35, 226, 13, 3.5), top: 33.2, landable: true, attract: 0.75, food: true },
     { id: 'coffee', label: 'coffee', material: 'coffee', shape: ellipse(schmidt.x + 35, 226, 11, 2.6), top: 33.2, landable: false, attract: 0 },
 
-    // Lukas: laptop, Mate and a Brezel
+    // Aro: laptop, Mate and a Brezel
     { id: 'napkin', label: 'napkin', material: 'paper', shape: rect(lukas.x - 68, 258, 30, 26, 1), top: 28.5, landable: true, attract: 0.3 },
     { id: 'brezel', label: 'Brezel', material: 'fruit', shape: ellipse(lukas.x - 53, 270, 13, 9), top: 31.5, landable: true, attract: 0.9, food: true },
     { id: 'laptop-keys', label: 'laptop', material: 'plastic', shape: rect(lukas.x - 34, 262, 68, 26, 3), top: 30, landable: true, attract: 0.3 },

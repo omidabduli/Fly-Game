@@ -19,7 +19,7 @@ Needs Node 22 or newer.
 
 ## Add a character
 
-Put the full-size PNGs in `assets/characters/<name>/`, named `<name>_<pose>.png`. Poses: `neutral`, `talking`, `happy`, `angry`, `blink`, plus optional `scared`, `hurt`, `disgusted`, `laugh`, `shoo1`, `shoo2`, `eat`, `stand_angry`, `stand_cheer`. Then run:
+Put the full-size PNGs in `assets/characters/<name>/`, named `<name>_<pose>.png`. Poses: `neutral`, `talking`, `happy`, `angry`, `blink`, plus optional `scared`, `hurt`, `disgusted`, `laugh`, `shoo1`, `shoo2`, `eat`, `stand_angry`, `stand_cheer`, `facepalm`, `eyeroll`, `stand_slam`, `startled`, `armscrossed`. Then run:
 
 ```bash
 python3 scripts/optimize_characters.py

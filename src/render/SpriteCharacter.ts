@@ -47,6 +47,10 @@ const SRC_W = 1024;
 const FRAMING: Partial<Record<Pose, { dEye: number; scale: number; lift: number }>> = {
   hurt: { dEye: -8, scale: 1, lift: 0 },
   disgusted: { dEye: 18, scale: 1, lift: 0 },
+  laugh: { dEye: 20, scale: 1, lift: 0 },
+  eat: { dEye: 10, scale: 1, lift: 0 },
+  facepalm: { dEye: 40, scale: 1, lift: 0 },
+  stand_slam: { dEye: 30, scale: 1, lift: 4 },
   stand_angry: { dEye: 40, scale: 1, lift: 7 },
   stand_cheer: { dEye: 295, scale: 0.86, lift: 12 },
 };
@@ -99,9 +103,20 @@ export class SpriteCharacter {
     const talking = p.bubble !== null && p.bubble.t < p.bubble.life - 0.3;
     if (p.hurtT > 0) return this.pick('hurt', 'angry');
     if (p.shooT > 0) return Math.floor(time * 6) % 2 ? this.pick('shoo2', 'shoo1', 'angry') : this.pick('shoo1', 'angry');
-    if (p.mood === 'scared' || p.mood === 'nervous' || p.flinch > 0.35) return this.pick('scared', 'startled', 'neutral');
-    if (p.mood === 'disgusted') return this.pick('disgusted', 'angry');
-    if (p.mood === 'angry') return this.pick('stand_angry', 'angry');
+    if (p.mood === 'scared' || p.mood === 'nervous' || p.flinch > 0.35) {
+      if (p.seat.id === 'mia') return this.pick('startled', 'scared', 'neutral');
+      if (p.seat.id === 'meyer') return this.pick('facepalm', 'scared', 'neutral');
+      return this.pick('scared', 'neutral');
+    }
+    if (p.mood === 'disgusted') {
+      if (p.seat.id === 'schmidt') return this.pick('eyeroll', 'disgusted', 'angry');
+      if (p.seat.id === 'lukas') return this.pick('armscrossed', 'disgusted', 'angry');
+      return this.pick('disgusted', 'angry');
+    }
+    if (p.mood === 'angry') {
+      if (p.seat.id === 'juergen') return this.pick('stand_slam', 'stand_angry', 'angry');
+      return this.pick('stand_angry', 'angry');
+    }
     if (p.clapT > 0) return this.pick('stand_cheer', 'happy');
     if (p.mood === 'happy') return this.pick(talking ? 'laugh' : 'happy', 'happy');
     if (p.bite >= 0 && p.bite < 0.9) return this.pick('eat', 'talking');

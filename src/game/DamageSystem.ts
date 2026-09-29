@@ -115,10 +115,10 @@ export const BREAKABLES: BreakableDef[] = [
     hurt(120, 'Schmerzensgeld Leila', 'AUA!'),
     hurt(200, 'Dienstaufsichtsbeschwerde', 'BONK!'),
   ]),
-  person('lukas', 'Yuna', [
-    hurt(50, 'Schmerzensgeld Yuna', 'AUA!'),
-    { cost: 180, label: 'Yunas Kopfhörer', word: 'KNACKS!', kind: 'screen' },
-    hurt(150, "Yunas Anwältin", 'BONK!'),
+  person('lukas', 'Aro', [
+    hurt(50, 'Schmerzensgeld Aro', 'AUA!'),
+    { cost: 180, label: 'Aros Laptop', word: 'KNACKS!', kind: 'screen' },
+    hurt(150, "Aros Beschwerde", 'BONK!'),
   ]),
   person('mia', 'Nora', [hurt(50, 'Schmerzensgeld Nora', 'AUA!'), hurt(25, 'Noras Frisur ruiniert', 'PLOPP!'), hurt(150, 'Noras Anwältin', 'BONK!')]),
   person('meyer', 'Lena', [hurt(60, 'Schmerzensgeld Lena', 'AUA!'), hurt(90, 'Lena ist beleidigt', 'BONK!')]),

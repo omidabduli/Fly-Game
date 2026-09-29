@@ -19,7 +19,7 @@ interface Look {
 const LOOKS: Record<PersonId, Look> = {
   juergen: { skin: '#f0c4a0', hair: '#8f8478', shirt: '#1e8a4a', shirtDark: '#166a38', bite: '#9c4a26' },
   schmidt: { skin: '#f4d3bc', hair: '#cdb68d', shirt: '#34466a', shirtDark: '#26344f', bite: '#f4e1a6' },
-  lukas: { skin: '#dcae88', hair: '#3f2c20', shirt: '#737a86', shirtDark: '#5a616c', bite: '#a4581f' },
+  lukas: { skin: '#c99572', hair: '#241b19', shirt: '#215c59', shirtDark: '#174743', bite: '#d28e32' },
   mia: { skin: '#f6d8c2', hair: '#b1532a', shirt: '#f2c230', shirtDark: '#d4a71c', bite: '#62b155' },
   meyer: { skin: '#f0bf9d', hair: '#6b5446', shirt: '#fafafa', shirtDark: '#dfe3e5', bite: '#e8b44a' },
 };
@@ -43,7 +43,7 @@ export class PeopleRenderer {
     this.sprites = {
       juergen: new SpriteCharacter(base, 'marisol', layout(300)),
       schmidt: new SpriteCharacter(base, 'leila', layout(292)),
-      lukas: new SpriteCharacter(base, 'yuna', layout(297)),
+      lukas: new SpriteCharacter(base, 'aro', layout(238)),
       mia: new SpriteCharacter(base, 'nora', layout(290)),
       meyer: new SpriteCharacter(base, 'character', layout(287)),
     };
@@ -290,7 +290,7 @@ export class PeopleRenderer {
       ctx.fillStyle = tint;
       ctx.fill();
     }
-    // laptop glow on Lukas's face
+    // laptop glow on Aro's face
     if (s.id === 'lukas' && damage.stage('laptop') < 2) {
       ctx.fillStyle = 'rgba(120,170,255,0.13)';
       ctx.beginPath();
