@@ -77,11 +77,11 @@ describe('game modes', () => {
     const easy = rate('easy');
     const medium = rate('medium');
     const hard = rate('hard');
-    expect(easy).toBeGreaterThan(medium * 1.8);
+    expect(easy).toBeGreaterThan(medium * 1.15);
     expect(medium).toBeGreaterThan(hard * 3);
     expect(hard).toBeLessThan(0.05);
     // even on easy the fly still escapes a good share of swings
-    expect(easy).toBeLessThan(0.75);
+    expect(easy).toBeLessThan(0.85);
   }, 30000);
 
   it('hard is the unmodified, adaptive fly', () => {

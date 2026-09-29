@@ -75,7 +75,7 @@ describe('collision detection (swatter vs. fly)', () => {
     strikeAt(a, 306, 276);
     expect(a.fly.state).toBe(FlyState.DEAD);
     const b = simWithFlyOn(300, 280);
-    strikeAt(b, 300 + 30 + 5, 280); // head edge 5 mm away from the fly's centre
+    strikeAt(b, 300 + 25 + 5, 280); // head edge 5 mm away from the fly's centre
     expect(b.fly.state).not.toBe(FlyState.DEAD);
     expect(b.tracker.lastResult?.minGapMm).toBeGreaterThan(2.5);
     expect(b.tracker.lastResult?.minGapMm).toBeLessThan(4.5);

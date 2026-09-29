@@ -398,8 +398,8 @@ export const DEFAULT_PARAMS: SimParams = {
     panicClearanceMm: -10,
   },
   swatter: {
-    headHalfWidthMm: 30, // [GAMEPLAY] compact 60x72 mm swatter head
-    headHalfHeightMm: 36,
+    headHalfWidthMm: 25, // [GAMEPLAY] compact 50x60 mm swatter head
+    headHalfHeightMm: 30,
     headCornerMm: 11,
     thicknessMm: 3,
     flexMm: 4, // [GAMEPLAY] the mesh bends a little on impact
@@ -429,7 +429,7 @@ export const DEFAULT_PARAMS: SimParams = {
     closeMm: 50,
   },
   difficulty: {
-    targetPlayerSuccess: 0.01, // [GAMEPLAY] ~1 catch per 100 serious attacks
+    targetPlayerSuccess: 0.05, // [GAMEPLAY] ~1 catch per 20 serious attacks
     initialLevel: 0.5,
     minLevel: 0,
     maxLevel: 1,

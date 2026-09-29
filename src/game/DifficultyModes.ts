@@ -21,7 +21,7 @@ export interface DifficultyMode {
 /**
  * The three game modes. The numbers were calibrated with the Monte-Carlo
  * attackers (`runMonteCarlo`): a typical mix of aimed swings catches roughly
- * 40% (easy), 12% (medium) and 1-2% (hard) of the time. Real players on a
+ * 70% (easy), 50% (medium) and a few percent (hard) of the time. Real players on a
  * phone aim less precisely, so they will see lower rates.
  */
 export const DIFFICULTIES: Record<DifficultyId, DifficultyMode> = {
@@ -31,14 +31,14 @@ export const DIFFICULTIES: Record<DifficultyId, DifficultyMode> = {
     icon: '🐌',
     flyName: 'Sleepy fly',
     blurb: 'Slow reflexes, lands close by',
-    odds: 'good swings often land',
+    odds: 'most good swings land',
     modulation: {
-      latencyScale: 1.42,
-      thresholdScale: 1.3,
-      takeoffScale: 0.85,
-      predictionNoiseScale: 1.6,
-      randomnessScale: 1.4,
-      landingDistanceScale: 0.7,
+      latencyScale: 2.2,
+      thresholdScale: 1.8,
+      takeoffScale: 0.7,
+      predictionNoiseScale: 2.4,
+      randomnessScale: 2.2,
+      landingDistanceScale: 0.5,
     },
   },
   medium: {
@@ -47,14 +47,14 @@ export const DIFFICULTIES: Record<DifficultyId, DifficultyMode> = {
     icon: '🪰',
     flyName: 'Alert fly',
     blurb: 'Quick, but makes mistakes',
-    odds: 'about 1 in 10 good swings',
+    odds: 'about every second good swing',
     modulation: {
-      latencyScale: 1.22,
-      thresholdScale: 1.18,
-      takeoffScale: 0.9,
-      predictionNoiseScale: 1.4,
-      randomnessScale: 1.25,
-      landingDistanceScale: 0.85,
+      latencyScale: 1.5,
+      thresholdScale: 1.32,
+      takeoffScale: 0.85,
+      predictionNoiseScale: 1.7,
+      randomnessScale: 1.45,
+      landingDistanceScale: 0.75,
     },
   },
   hard: {
@@ -63,7 +63,7 @@ export const DIFFICULTIES: Record<DifficultyId, DifficultyMode> = {
     icon: '🥷',
     flyName: 'Ninja fly',
     blurb: 'Full escape reflex, learns from you',
-    odds: 'escapes ~99% of swings',
+    odds: 'a real challenge',
     modulation: null,
   },
 };
