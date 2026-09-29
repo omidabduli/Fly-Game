@@ -10,6 +10,7 @@ export type BreakableId =
   | 'juergen'
   | 'schmidt'
   | 'lukas'
+  | 'lena'
   | 'mia'
   | 'meyer'
   | 'currywurst'
@@ -27,6 +28,9 @@ export type BreakableId =
   | 'bowl'
   | 'schorle'
   | 'phone'
+  | 'plate-lena'
+  | 'pizza'
+  | 'tea'
   | 'poster';
 
 /** Decides the sound and the debris of a break. */
@@ -120,8 +124,9 @@ export const BREAKABLES: BreakableDef[] = [
     { cost: 180, label: 'Aros Laptop', word: 'KNACKS!', kind: 'screen' },
     hurt(150, "Aros Beschwerde", 'BONK!'),
   ]),
+  person('lena', 'Lena', [hurt(60, 'Schmerzensgeld Lena', 'AUA!'), hurt(90, 'Lena ist beleidigt', 'BONK!')]),
   person('mia', 'Nora', [hurt(50, 'Schmerzensgeld Nora', 'AUA!'), hurt(25, 'Noras Frisur ruiniert', 'PLOPP!'), hurt(150, 'Noras Anwältin', 'BONK!')]),
-  person('meyer', 'Lena', [hurt(60, 'Schmerzensgeld Lena', 'AUA!'), hurt(90, 'Lena ist beleidigt', 'BONK!')]),
+  person('meyer', 'Herr Meyer', [hurt(60, 'Schmerzensgeld Herr Meyer', 'AUA!'), hurt(90, 'Herr Meyer ist beleidigt', 'BONK!')]),
   { id: 'currywurst', name: 'Currywurst', objects: ['currywurst'], owner: 'juergen', stages: [{ cost: 3.2, label: 'Currywurst zermatscht', word: 'SPLATSCH!', kind: 'food' }] },
   { id: 'fries', name: 'fries', objects: ['fries'], owner: 'juergen', stages: [{ cost: 2.1, label: 'Pommes überall', word: 'ZACK!', kind: 'crumbs' }] },
   {
@@ -226,6 +231,29 @@ export const BREAKABLES: BreakableDef[] = [
       { cost: 4, label: 'Glas zerbrochen', word: 'KLIRR!', kind: 'glass' },
     ],
   },
+  { id: 'pizza', name: 'pizza', objects: ['pizza'], owner: 'lena', stages: [{ cost: 4.5, label: 'Pizza platt', word: 'MATSCH!', kind: 'food' }] },
+  {
+    id: 'plate-lena',
+    name: 'plate',
+    objects: ['plate-lena', 'tray-lena'],
+    markObject: 'plate-lena',
+    owner: 'lena',
+    stages: [
+      { cost: 8, label: 'Teller gesprungen', word: 'KLIRR!', kind: 'ceramic' },
+      { cost: 12, label: 'Teller zerbrochen', word: 'SCHEPPER!', kind: 'ceramic' },
+    ],
+  },
+  {
+    id: 'tea',
+    name: 'iced tea',
+    objects: ['tea', 'tea-rim', 'tea-body'],
+    markObject: 'tea-body',
+    owner: 'lena',
+    stages: [
+      { cost: 2.4, label: 'Eistee verschüttet', word: 'PLATSCH!', kind: 'liquid' },
+      { cost: 4, label: 'Glas zerbrochen', word: 'KLIRR!', kind: 'glass' },
+    ],
+  },
   {
     id: 'phone',
     name: 'phone',
@@ -298,7 +326,7 @@ export interface DamageRank {
 export function damageRank(total: number): DamageRank {
   if (total <= 0) return { title: 'SAUBER', line: 'Not a scratch on anything. Ordnung muss sein.' };
   if (total < 20) return { title: 'ORDENTLICH', line: 'Barely a mess.' };
-  if (total < 200) return { title: 'SCHLAMPIG', line: 'Lena is not amused.' };
+  if (total < 200) return { title: 'SCHLAMPIG', line: 'Herr Meyer is not amused.' };
   if (total < 800) return { title: 'CHAOT', line: 'The whole Mensa is staring at you.' };
   return { title: 'TOTALSCHADEN', line: 'The fly is dead. So is the Mensa.' };
 }

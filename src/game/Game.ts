@@ -138,7 +138,7 @@ export class Game {
     this.sim = new Simulation();
     // Phones/tablets: zoom in further so the fly stays comfortably visible (view pans).
     const coarse = matchMedia('(pointer: coarse)').matches;
-    this.camera = new Camera(this.sim.scene.width, this.sim.scene.height, coarse ? 2.9 : 2.3);
+    this.camera = new Camera(this.sim.scene.width, this.sim.scene.height, coarse ? 2.9 : 1.8);
     this.scene = new SceneRenderer(this.sim.scene, this.damage);
     this.roomFx = new RoomFx(this.sim.scene);
     this.roomFx.onNotice = () => {

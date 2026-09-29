@@ -24,9 +24,9 @@ export interface PersonDef {
 }
 
 /**
- * The diners, and Lena at the food counter. (The ids are the seat
+ * The diners, and Herr Meyer the cook at the food counter. (The ids are the seat
  * names from the original scene: juergen = Marisol, schmidt = Leila, lukas = Aro,
- * mia = Nora, meyer = Lena.)
+ * lena = Lena, mia = Nora, meyer = Herr Meyer the cook.)
  */
 export const PEOPLE: Record<PersonId, PersonDef> = {
   juergen: {
@@ -83,6 +83,24 @@ export const PEOPLE: Record<PersonId, PersonDef> = {
       newFly: ['Sie hat Verstärkung geholt.', 'Na gut. Noch eine Runde.'],
     },
   },
+  lena: {
+    id: 'lena',
+    name: 'Lena',
+    shooAfter: [1.5, 3],
+    lines: {
+      idle: ['Pizza ist ein Grundrecht.', 'Ich hab gerade Pause. Ausnahmsweise.', 'Hier riecht’s nach Regen.', 'Drei Stunden Schicht, ein Stück Pizza.', 'Essen zwei ist aus. Wirklich.'],
+      flyOnMe: ['Nö.', 'Nicht auf mir.', 'Ich hab gesagt: nö.'],
+      flyOnFood: ['Meine Pizza. Meine Regeln.', 'Ich arbeite hier. Ich weiß, wo die Fliegen herkommen.', 'Beine weg vom Käse.'],
+      nearMiss: ['Ruhig.', 'Achtung, mein Tee!', 'Mit Gefühl, bitte.', 'Fast.'],
+      swatterOverMe: ['Ich seh dich.', 'Nein.'],
+      hurt: ['Autsch. Danke auch.', 'Das notiere ich.', 'Aua!'],
+      mineBroken: ['Meine Pizza!', 'Mein Eistee!', 'Das war meine Pause!'],
+      otherBroken: ['Das zahlt jemand.', 'Oh. Ups.', 'Peinlich.'],
+      kill: ['Na also.', 'Endlich Ruhe.', 'Gut gemacht.'],
+      bigDamage: ['Ich ruf den Hausmeister.', 'Das wird richtig teuer.'],
+      newFly: ['Da ist sie wieder.', 'Nicht schon wieder.'],
+    },
+  },
   mia: {
     id: 'mia',
     name: 'Nora',
@@ -103,7 +121,7 @@ export const PEOPLE: Record<PersonId, PersonDef> = {
   },
   meyer: {
     id: 'meyer',
-    name: 'Lena',
+    name: 'Herr Meyer',
     shooAfter: [1.5, 3],
     lines: {
       idle: ['Essen zwei ist aus!', 'Wer will noch Pommes?', 'Tabletts zur Rückgabe, bitte!', 'Mensakarte aufladen!', 'Nachschlag gibt’s nicht!'],
@@ -127,6 +145,7 @@ const DIALOGUES: [PersonId, string][][] = [
   [['mia', 'Ist das etwa Currywurst? 🤢'], ['juergen', 'Das ist Kulturgut, Schatz!']],
   [['schmidt', 'Aro? Du warst nicht in meiner Vorlesung.'], ['lukas', 'Ich war da. Nur ein bisschen weiter hinten.'], ['schmidt', 'Das erklärt die Sonnenbrille.']],
   [['meyer', 'Essen zwei ist aus!'], ['juergen', 'Schon wieder?!']],
+  [['lena', 'Herr Meyer, die Pizza war gut.'], ['meyer', 'Ich weiß.']],
   [['mia', 'Regnet es draußen?'], ['juergen', 'Wir sind in Bremen. Natürlich.']],
   [['juergen', 'Moin!'], ['meyer', 'Moin moin!'], ['schmidt', 'Einmal Moin reicht.']],
   [['lukas', 'Hat jemand eine Mensakarte für mich?'], ['schmidt', 'Nein.']],

@@ -20,8 +20,9 @@ const LOOKS: Record<PersonId, Look> = {
   juergen: { skin: '#f0c4a0', hair: '#8f8478', shirt: '#1e8a4a', shirtDark: '#166a38', bite: '#9c4a26' },
   schmidt: { skin: '#f4d3bc', hair: '#cdb68d', shirt: '#34466a', shirtDark: '#26344f', bite: '#f4e1a6' },
   lukas: { skin: '#c99572', hair: '#241b19', shirt: '#215c59', shirtDark: '#174743', bite: '#d28e32' },
+  lena: { skin: '#f0c9ae', hair: '#2b2224', shirt: '#e0674f', shirtDark: '#b94c39', bite: '#a4581f' },
   mia: { skin: '#f6d8c2', hair: '#b1532a', shirt: '#f2c230', shirtDark: '#d4a71c', bite: '#62b155' },
-  meyer: { skin: '#f0bf9d', hair: '#6b5446', shirt: '#fafafa', shirtDark: '#dfe3e5', bite: '#e8b44a' },
+  meyer: { skin: '#e6b08c', hair: '#cfcac2', shirt: '#fafafa', shirtDark: '#dfe3e5', bite: '#e8b44a' },
 };
 
 const HAND_R = 5.2;
@@ -35,7 +36,7 @@ const easeInOut = (u: number) => u * u * (3 - 2 * u);
  */
 export class PeopleRenderer {
   /** Who sits where: the ready-made character sprites (public/characters/<name>). */
-  private readonly sprites: Record<PersonId, SpriteCharacter>;
+  private readonly sprites: Partial<Record<PersonId, SpriteCharacter>>;
 
   constructor() {
     const base = import.meta.env.BASE_URL;
@@ -45,7 +46,7 @@ export class PeopleRenderer {
       schmidt: new SpriteCharacter(base, 'leila', layout(292)),
       lukas: new SpriteCharacter(base, 'aro', layout(238)),
       mia: new SpriteCharacter(base, 'nora', layout(290)),
-      meyer: new SpriteCharacter(base, 'character', layout(287)),
+      lena: new SpriteCharacter(base, 'character', layout(287)),
     };
   }
 
@@ -66,7 +67,7 @@ export class PeopleRenderer {
       const shake = hit > 0 ? Math.sin(time * 42) * 2.2 * hit * hit : 0;
       ctx.translate(shake, bob + hit * 2.5);
       const sprite = this.sprites[s.id];
-      if (sprite.ready) {
+      if (sprite?.ready) {
         // the whole person tilts a little around the waist when hit
         ctx.save();
         const tilt = hit > 0 ? 0.05 * Math.sin(time * 16) * hit : 0;
@@ -464,7 +465,7 @@ export class PeopleRenderer {
       }
     }
     // eyebrows
-    const browCol = s.id === 'juergen' ? '#6b5a4a' : s.id === 'schmidt' ? '#a8905e' : '#3a2a20';
+    const browCol = s.id === 'juergen' ? '#6b5a4a' : s.id === 'meyer' ? '#9a958c' : s.id === 'schmidt' ? '#a8905e' : '#3a2a20';
     ctx.strokeStyle = browCol;
     ctx.lineWidth = s.staff ? 1 : 1.5;
     ctx.lineCap = 'round';
@@ -502,6 +503,14 @@ export class PeopleRenderer {
       ctx.beginPath();
       ctx.ellipse(x - 5, y + 10, 6.5, 3, 0.25, 0, Math.PI * 2);
       ctx.ellipse(x + 5, y + 10, 6.5, 3, -0.25, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (s.id === 'meyer') {
+      // the old cook's grey moustache
+      ctx.fillStyle = '#c9c4bb';
+      ctx.beginPath();
+      ctx.ellipse(x - 3.4, y + 7.4, 4.6, 2.1, 0.25, 0, Math.PI * 2);
+      ctx.ellipse(x + 3.4, y + 7.4, 4.6, 2.1, -0.25, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -776,7 +785,7 @@ export class PeopleRenderer {
       const elbowL: [number, number] = [x - 44, TABLE_Y - 3];
       const elbowR: [number, number] = [x + 44, TABLE_Y - 3];
       // the sprites already include their arms (resting below the table edge)
-      if (this.sprites[s.id].ready) continue;
+      if (this.sprites[s.id]?.ready) continue;
       // fallback drawing while the images load: rest her hands beside the laptop instead of reaching through it
       let hl: [number, number] = s.id === 'lukas' ? [x - 44, 270] : [x - 30, 250];
       let hr: [number, number] = s.id === 'lukas' ? [x + 43, 272] : [x + 14, 254];

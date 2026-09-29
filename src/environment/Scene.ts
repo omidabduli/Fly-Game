@@ -66,13 +66,13 @@ export interface SurfaceObject extends SurfaceDef {
   area: number;
 }
 
-export const WORLD_W = 560;
+export const WORLD_W = 690;
 export const WORLD_H = 320;
 
 /** Back edge of the dining table: people sit behind it, their plates stand on it. */
 export const TABLE_Y = 222;
 
-export type PersonId = 'juergen' | 'schmidt' | 'lukas' | 'mia' | 'meyer';
+export type PersonId = 'juergen' | 'schmidt' | 'lukas' | 'lena' | 'mia' | 'meyer';
 
 export interface Seat {
   id: PersonId;
@@ -86,12 +86,13 @@ export interface Seat {
   staff?: boolean;
 }
 
-/** The four diners across the table, and Frau Meyer behind the food counter. */
+/** The five diners across the table, and the cook behind the food counter. */
 export const SEATS: Seat[] = [
   { id: 'juergen', x: 88, y: 116, rx: 22, ry: 27 },
   { id: 'schmidt', x: 212, y: 116, rx: 21, ry: 26 },
   { id: 'lukas', x: 342, y: 116, rx: 22, ry: 27 },
-  { id: 'mia', x: 470, y: 118, rx: 21, ry: 26 },
+  { id: 'lena', x: 470, y: 116, rx: 21, ry: 26 },
+  { id: 'mia', x: 598, y: 118, rx: 21, ry: 26 },
   { id: 'meyer', x: 150, y: 66, rx: 15, ry: 18, staff: true },
 ];
 
@@ -120,7 +121,8 @@ function glass(id: string, label: string, x: number, y: number, w: number, h: nu
  * the food counter with Frau Meyer, the menu screen and a rainy Bremen outside.
  */
 export function buildMensaLayout(): SurfaceDef[] {
-  const [juergen, schmidt, lukas, mia, meyer] = SEATS;
+  const seat = (id: PersonId) => SEATS.find((s) => s.id === id)!;
+  const [juergen, schmidt, lukas, lena, mia, meyer] = (['juergen', 'schmidt', 'lukas', 'lena', 'mia', 'meyer'] as PersonId[]).map(seat);
   return [
     { id: 'wall', label: 'wall', material: 'wall', shape: rect(0, 0, WORLD_W, WORLD_H), top: 0, landable: true, attract: 0.3 },
 
@@ -146,13 +148,14 @@ export function buildMensaLayout(): SurfaceDef[] {
     { id: 'sneeze-guard', label: 'sneeze guard', material: 'glass', shape: rect(4, 94, 198, 12, 2), top: 20, landable: true, attract: 0.3 },
 
     // --- a big ficus in the corner ---
-    { id: 'plant-pot', label: 'plant pot', material: 'terracotta', shape: rect(522, 150, 32, 44, 3), top: 14, landable: true, attract: 0.3 },
-    { id: 'plant-leaves', label: 'plant', material: 'leaf', shape: ellipse(538, 128, 22, 28), top: 16, landable: true, attract: 0.55 },
+    { id: 'plant-pot', label: 'plant pot', material: 'terracotta', shape: rect(650, 150, 32, 44, 3), top: 14, landable: true, attract: 0.3 },
+    { id: 'plant-leaves', label: 'plant', material: 'leaf', shape: ellipse(666, 128, 22, 28), top: 16, landable: true, attract: 0.55 },
 
     // --- the diners ---
     ...person(juergen, true),
     ...person(schmidt),
     ...person(lukas),
+    ...person(lena),
     ...person(mia),
 
     // --- the long Mensa table ---
@@ -182,6 +185,12 @@ export function buildMensaLayout(): SurfaceDef[] {
     { id: 'laptop-lid', label: 'laptop', material: 'plastic', shape: rect(lukas.x - 34, 204, 68, 58, 3), top: 32, landable: true, attract: 0.4, bright: true },
     { id: 'mate-body', label: 'Mate bottle', material: 'glass', shape: rect(lukas.x + 42, 204, 14, 52, 5), top: 32.8, landable: true, attract: 0.3 },
     { id: 'mate-cap', label: 'Mate bottle', material: 'metal', shape: ellipse(lukas.x + 49, 204, 5, 2.5), top: 33.4, landable: true, attract: 0.6, food: true },
+
+    // Lena: a slice of pizza and an iced tea
+    { id: 'tray-lena', label: 'tray', material: 'plastic', shape: rect(lena.x - 50, 236, 100, 54, 4), top: 29.5, landable: true, attract: 0.35 },
+    { id: 'plate-lena', label: 'plate', material: 'ceramic', shape: ellipse(lena.x - 8, 267, 32, 14), top: 30.5, landable: true, attract: 0.45 },
+    { id: 'pizza', label: 'pizza', material: 'fruit', shape: ellipse(lena.x - 8, 265, 24, 9), top: 32, landable: true, attract: 1, food: true },
+    ...glass('tea', 'iced tea', lena.x + 30, 218, 16, 36, 32.5),
 
     // Mia: salad, Apfelschorle and her phone
     { id: 'tray-mia', label: 'tray', material: 'plastic', shape: rect(mia.x - 50, 236, 100, 54, 4), top: 29.5, landable: true, attract: 0.35 },

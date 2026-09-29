@@ -1012,6 +1012,7 @@ export class SceneRenderer {
     this.juergenPlace(ctx);
     this.schmidtPlace(ctx);
     this.lukasPlace(ctx);
+    this.lenaPlace(ctx);
     this.miaPlace(ctx);
   }
 
@@ -1020,7 +1021,7 @@ export class SceneRenderer {
     for (let i = 0; i < 30; i++) {
       ctx.fillStyle = rng.chance(0.5) ? 'rgba(170,120,60,0.6)' : 'rgba(120,80,40,0.5)';
       ctx.beginPath();
-      ctx.arc(rng.range(10, 550), rng.range(292, 316), rng.range(0.3, 0.8), 0, Math.PI * 2);
+      ctx.arc(rng.range(10, this.scene.width - 10), rng.range(292, 316), rng.range(0.3, 0.8), 0, Math.PI * 2);
       ctx.fill();
     }
     // a lost chip
@@ -1645,6 +1646,42 @@ export class SceneRenderer {
   }
 
   // --- Mia ---
+  /** Lena's slice of pizza and iced tea. */
+  private lenaPlace(ctx: Ctx): void {
+    this.tray(ctx, 'tray-lena');
+    this.plate(ctx, 'plate-lena', 'plate-lena');
+    const p = this.ellOf('pizza');
+    const squashed = this.stage('pizza') > 0;
+    const rng = new Rng(squashed ? this.marks('pizza')[0].seed : 41);
+    ctx.save();
+    ctx.translate(p.cx, p.cy + (squashed ? 1.5 : 0));
+    if (squashed) ctx.scale(1.3, 1.35);
+    ctx.fillStyle = '#d99a48';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, p.rx, p.ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#c4432e';
+    ctx.beginPath();
+    ctx.ellipse(0, -0.4, p.rx - 2.6, p.ry - 1.6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f4d47e';
+    for (let i = 0; i < 9; i++) {
+      ctx.beginPath();
+      ctx.ellipse(rng.range(-p.rx * 0.7, p.rx * 0.7), rng.range(-p.ry * 0.5, p.ry * 0.5), rng.range(2, 4), rng.range(1, 1.8), rng.range(0, 3), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#a3271f';
+    for (const [dx, dy] of [[-12, -1], [-3, 2], [6, -2], [13, 1]]) {
+      ctx.beginPath();
+      ctx.ellipse(dx * (p.rx / 24), dy, 2.4, 1.6, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#4f9a47';
+    for (let i = 0; i < 4; i++) ctx.fillRect(rng.range(-p.rx * 0.6, p.rx * 0.6), rng.range(-p.ry * 0.5, p.ry * 0.4), 1.2, 0.7);
+    ctx.restore();
+    this.glass(ctx, 'tea', 'tea', '196,120,52', 'rgba(255,245,225,0.95)');
+  }
+
   private miaPlace(ctx: Ctx): void {
     this.tray(ctx, 'tray-mia');
     const bowl = this.ellOf('bowl');

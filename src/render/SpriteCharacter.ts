@@ -105,7 +105,7 @@ export class SpriteCharacter {
     if (p.shooT > 0) return Math.floor(time * 6) % 2 ? this.pick('shoo2', 'shoo1', 'angry') : this.pick('shoo1', 'angry');
     if (p.mood === 'scared' || p.mood === 'nervous' || p.flinch > 0.35) {
       if (p.seat.id === 'mia') return this.pick('startled', 'scared', 'neutral');
-      if (p.seat.id === 'meyer') return this.pick('facepalm', 'scared', 'neutral');
+      if (p.seat.id === 'lena') return this.pick('facepalm', 'scared', 'neutral');
       return this.pick('scared', 'neutral');
     }
     if (p.mood === 'disgusted') {
