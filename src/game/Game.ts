@@ -12,6 +12,7 @@ import { Effects } from '../render/Effects';
 import { type FlyPose, FlyRenderer } from '../render/FlyRenderer';
 import { PeopleRenderer } from '../render/PeopleRenderer';
 import { drawBubble, RoomFx } from '../render/RoomFx';
+import { makeRetroOverlay } from '../render/RetroFilter';
 import { SceneRenderer } from '../render/SceneRenderer';
 import { type SwatterPose, SwatterRenderer } from '../render/SwatterRenderer';
 import { Haptics } from '../ui/Haptics';
@@ -420,6 +421,8 @@ export class Game {
   }
 
   private lastBuildDpr = 1;
+  private retroOverlay: HTMLCanvasElement | null = null;
+  private retroKey = '';
 
   /** Reads the safe-area insets and how much of the screen the HUD covers. */
   private updateInsets(): void {
@@ -503,6 +506,14 @@ export class Game {
     this.effects.draw(ctx);
     if (showSwatter) this.swR.drawOver(ctx, swPose, cam);
     if (replayFrame && this.player) this.drawReplayOver(ctx, this.player, s);
+    // film look over the whole picture: soft vignette and faint scanlines
+    const overlayKey = `${cam.viewW}x${cam.viewH}@${dpr}`;
+    if (overlayKey !== this.retroKey) {
+      this.retroKey = overlayKey;
+      this.retroOverlay = makeRetroOverlay(cam.viewW, cam.viewH, dpr);
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (this.retroOverlay) ctx.drawImage(this.retroOverlay, 0, 0);
     // screen space
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (!replayFrame) {

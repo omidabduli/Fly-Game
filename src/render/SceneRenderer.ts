@@ -1,3 +1,4 @@
+import { retroFilter } from './RetroFilter';
 import { POSTER_RECT, type Scene, type SurfaceObject, TABLE_Y } from '../environment/Scene';
 import type { BreakableId, DamageMark, DamageSystem } from '../game/DamageSystem';
 import { Rng } from '../math/rng';
@@ -51,6 +52,8 @@ const GLASS_CRACK = { color: 'rgba(255,255,255,0.88)', shadow: 'rgba(40,60,80,0.
  * drawn from the same shapes the physics uses, so what you see is what the
  * swatter hits.
  */
+const RETRO_PX_PER_MM = 2.5;
+
 export class SceneRenderer {
   private back: Layer | null = null;
   private front: Layer | null = null;
@@ -86,7 +89,8 @@ export class SceneRenderer {
     const backY: [number, number] = [-M, TABLE_Y + 10];
     const frontY: [number, number] = [FRONT_Y0, this.scene.height + M];
     const area = W * (backY[1] - backY[0] + frontY[1] - frontY[0]);
-    let k = Math.min(pxPerMm, Math.sqrt(maxPx / area));
+    // the background is drawn at a fixed, modest resolution and scaled up with hard pixels: that is the retro look
+    let k = Math.min(pxPerMm, RETRO_PX_PER_MM, Math.sqrt(maxPx / area));
     for (const old of [this.back, this.front]) {
       if (old) {
         old.canvas.width = 0;
@@ -130,6 +134,7 @@ export class SceneRenderer {
       ctx.save();
       paint(ctx);
       ctx.restore();
+      retroFilter(L.canvas);
     }
   }
 
@@ -169,6 +174,7 @@ export class SceneRenderer {
     const iy1 = Math.min(wy0 + cam.viewHmm, L.y1);
     if (ix1 <= ix0 || iy1 <= iy0) return;
     const s = cam.scale * dpr;
+    ctx.imageSmoothingEnabled = false;
     ctx.drawImage(L.canvas as CanvasImageSource, (ix0 + M) * k, (iy0 - L.y0) * k, (ix1 - ix0) * k, (iy1 - iy0) * k, (ix0 - wx0) * s, (iy0 - wy0) * s, (ix1 - ix0) * s, (iy1 - iy0) * s);
   }
 
@@ -464,68 +470,84 @@ export class SceneRenderer {
 
   /** Rainy Bremen: grey sky, red-brick campus, trees, bikes, drizzle. */
   private outdoor(ctx: Ctx, g: RectS): void {
+    // a 90s-anime sunset over Bremen: banded sky, a big low sun, purple rooftops
     const sky = ctx.createLinearGradient(0, g.y, 0, g.y + g.h);
-    sky.addColorStop(0, '#9fb0bd');
-    sky.addColorStop(0.65, '#c8d3da');
-    sky.addColorStop(1, '#d6dcd8');
+    sky.addColorStop(0, '#3d2d78');
+    sky.addColorStop(0.32, '#a04a9c');
+    sky.addColorStop(0.62, '#ff7a6a');
+    sky.addColorStop(0.85, '#ffc066');
+    sky.addColorStop(1, '#ffe7a0');
     ctx.fillStyle = sky;
     ctx.fillRect(g.x, g.y, g.w, g.h);
-    const cloud = (cx: number, cy: number, s: number, a: number) => {
-      ctx.fillStyle = `rgba(235,240,245,${a})`;
+    const base = g.y + g.h;
+    // sun
+    const sx = g.x + g.w * 0.62;
+    const sy = base - 30;
+    const sun = ctx.createRadialGradient(sx, sy, 2, sx, sy, 48);
+    sun.addColorStop(0, 'rgba(255,250,215,1)');
+    sun.addColorStop(0.3, 'rgba(255,214,120,0.9)');
+    sun.addColorStop(1, 'rgba(255,150,90,0)');
+    ctx.fillStyle = sun;
+    ctx.fillRect(g.x, g.y, g.w, g.h);
+    ctx.fillStyle = '#fff6d0';
+    ctx.beginPath();
+    ctx.arc(sx, sy, 15, 0, Math.PI * 2);
+    ctx.fill();
+    // flat, streaky clouds
+    const cloud = (cx: number, cy: number, w: number, col: string) => {
+      ctx.fillStyle = col;
       ctx.beginPath();
-      ctx.ellipse(cx, cy, 20 * s, 6 * s, 0, 0, Math.PI * 2);
-      ctx.ellipse(cx - 12 * s, cy + 2 * s, 12 * s, 5 * s, 0, 0, Math.PI * 2);
-      ctx.ellipse(cx + 12 * s, cy + 1.5 * s, 13 * s, 5.5 * s, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, cy, w, 2.6, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx - w * 0.5, cy + 2, w * 0.6, 2, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx + w * 0.4, cy - 1.6, w * 0.5, 2, 0, 0, Math.PI * 2);
       ctx.fill();
     };
-    cloud(400, 24, 1.1, 0.7);
-    cloud(480, 34, 1.3, 0.55);
-    cloud(530, 20, 0.9, 0.6);
-    // red-brick buildings
-    const base = g.y + g.h;
-    const bld = (x: number, w: number, h: number, col: string) => {
+    cloud(g.x + 40, g.y + 26, 26, 'rgba(255,168,150,0.85)');
+    cloud(g.x + 128, g.y + 44, 30, 'rgba(255,214,150,0.8)');
+    cloud(g.x + 88, g.y + 12, 22, 'rgba(206,120,190,0.7)');
+    // far skyline in violet, near roofs darker
+    const bld = (x: number, w: number, h: number, col: string, lit: boolean) => {
       ctx.fillStyle = col;
       ctx.fillRect(x, base - h, w, h);
-      ctx.fillStyle = 'rgba(40,50,60,0.35)';
-      for (let yy = base - h + 5; yy < base - 8; yy += 7) for (let xx = x + 3; xx < x + w - 4; xx += 7) ctx.fillRect(xx, yy, 3.5, 4);
+      if (!lit) return;
+      ctx.fillStyle = 'rgba(255,214,120,0.95)';
+      for (let yy = base - h + 5; yy < base - 8; yy += 8) for (let xx = x + 3; xx < x + w - 4; xx += 8) if (((xx * 7 + yy * 3) | 0) % 5 < 2) ctx.fillRect(xx, yy, 3, 4);
     };
-    bld(378, 44, 58, '#9a4b3b');
-    bld(420, 30, 40, '#a8584a');
-    bld(492, 60, 70, '#8f4436');
-    // trees
-    ctx.fillStyle = '#5f7f5a';
-    for (const [x, r] of [[455, 16], [476, 12], [376, 10]] as const) {
+    bld(g.x + 4, 30, 40, '#6b3f86', false);
+    bld(g.x + 30, 22, 54, '#5c3479', false);
+    bld(g.x + 56, 36, 34, '#6b3f86', false);
+    bld(g.x + 100, 26, 62, '#5c3479', false);
+    bld(g.x + 138, 30, 42, '#6b3f86', false);
+    // a church spire
+    ctx.fillStyle = '#4a2a66';
+    ctx.beginPath();
+    ctx.moveTo(g.x + 82, base - 34);
+    ctx.lineTo(g.x + 86, base - 86);
+    ctx.lineTo(g.x + 90, base - 34);
+    ctx.fill();
+    bld(g.x + 8, 44, 30, '#3a2057', true);
+    bld(g.x + 60, 34, 24, '#432561', true);
+    bld(g.x + 118, 46, 32, '#3a2057', true);
+    // trees and the street
+    ctx.fillStyle = '#2a1a48';
+    for (const [x, r] of [[g.x + 52, 11], [g.x + 108, 13], [g.x + 166, 10]] as const) {
       ctx.beginPath();
-      ctx.arc(x, base - 22, r, 0, Math.PI * 2);
-      ctx.arc(x + r * 0.6, base - 18, r * 0.8, 0, Math.PI * 2);
+      ctx.arc(x, base - 14, r, 0, Math.PI * 2);
+      ctx.arc(x + r * 0.7, base - 11, r * 0.75, 0, Math.PI * 2);
       ctx.fill();
     }
-    ctx.fillStyle = '#6f7a6a';
-    ctx.fillRect(g.x, base - 9, g.w, 9);
-    // a row of bikes (it's Bremen)
-    ctx.strokeStyle = 'rgba(40,45,50,0.75)';
-    ctx.lineWidth = 0.5;
-    for (let x = 440; x < 530; x += 13) {
+    ctx.fillStyle = '#2b1c4b';
+    ctx.fillRect(g.x, base - 8, g.w, 8);
+    // a few flying birds
+    ctx.strokeStyle = '#3a2057';
+    ctx.lineWidth = 0.7;
+    for (const [bx, by] of [[g.x + 70, g.y + 30], [g.x + 82, g.y + 24], [g.x + 150, g.y + 38]] as const) {
       ctx.beginPath();
-      ctx.arc(x, base - 4, 3, 0, Math.PI * 2);
-      ctx.arc(x + 7, base - 4, 3, 0, Math.PI * 2);
-      ctx.moveTo(x, base - 4);
-      ctx.lineTo(x + 3, base - 8);
-      ctx.lineTo(x + 7, base - 4);
+      ctx.moveTo(bx - 3, by);
+      ctx.quadraticCurveTo(bx - 1.5, by - 2.4, bx, by);
+      ctx.quadraticCurveTo(bx + 1.5, by - 2.4, bx + 3, by);
       ctx.stroke();
     }
-    // drizzle
-    const rng = new Rng(13);
-    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-    ctx.lineWidth = 0.25;
-    ctx.beginPath();
-    for (let i = 0; i < 140; i++) {
-      const x = rng.range(g.x, g.x + g.w);
-      const y = rng.range(g.y, g.y + g.h);
-      ctx.moveTo(x, y);
-      ctx.lineTo(x - 1.5, y + 5);
-    }
-    ctx.stroke();
   }
 
   private window(ctx: Ctx): void {
