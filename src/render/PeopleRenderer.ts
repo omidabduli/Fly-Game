@@ -51,11 +51,13 @@ export class PeopleRenderer {
 
   /** Heads, shoulders and upper arms (clipped at the table edge / behind the counter). */
   drawBodies(ctx: Ctx, people: PeopleSystem, damage: DamageSystem, time: number): void {
-    for (const p of people.people) {
+    // the counter staff stand furthest back, so they are drawn first; the diners overlap them
+    const order = [...people.people].sort((a, b) => Number(!!b.seat.staff) - Number(!!a.seat.staff));
+    for (const p of order) {
       const s = p.seat;
       ctx.save();
       ctx.beginPath();
-      if (s.staff) ctx.rect(s.x - 60, -40, 120, 146);
+      if (s.staff) ctx.rect(s.x - 100, -60, 200, 166);
       else ctx.rect(s.x - 80, -40, 160, TABLE_Y + 40.5);
       ctx.clip();
       const bob = Math.sin(time * 1.6 + s.x) * 0.5 - p.flinch * 3;
