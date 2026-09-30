@@ -219,6 +219,9 @@ export class Game {
     this.applyModulation(true);
     window.addEventListener('resize', () => this.resize());
     window.visualViewport?.addEventListener('resize', () => this.resize());
+    // the pane can get its real size after first layout (fonts, dvh, window restore on macOS)
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => this.resize()).observe(this.root);
+    window.addEventListener('pageshow', () => this.resize());
     document.addEventListener('visibilitychange', () => this.onVisibility());
     window.addEventListener('keydown', (e) => this.onKey(e));
     window.addEventListener('pagehide', () => this.persist());
@@ -437,7 +440,7 @@ export class Game {
     this.aimSX = clamp(this.aimSX, 0, w);
     this.aimSY = clamp(this.aimSY, 0, h);
     // phones get a smaller background buffer (iOS canvas memory limit)
-    const maxPx = this.touchDevice ? 9e6 : 14e6;
+    const maxPx = this.touchDevice ? 9e6 : 10e6;
     if (!this.scene.built) this.scene.build(this.camera.scale * this.dpr, maxPx);
     else if (Math.abs(prevScale - this.camera.scale) > 0.01 || this.dpr !== this.lastBuildDpr) {
       clearTimeout(this.rebuildTimer);

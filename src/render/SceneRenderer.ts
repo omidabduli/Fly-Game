@@ -54,6 +54,19 @@ const GLASS_CRACK = { color: 'rgba(255,255,255,0.88)', shadow: 'rgba(40,60,80,0.
  */
 const RETRO_PX_PER_MM = 2.5;
 
+/** True when nothing was painted into the canvas (samples it down to 16 x 16). */
+function isBlank(c: HTMLCanvasElement | OffscreenCanvas): boolean {
+  if (typeof document === 'undefined' || !c.width || !c.height) return false;
+  const probe = document.createElement('canvas');
+  probe.width = probe.height = 16;
+  const x = probe.getContext('2d', { willReadFrequently: true });
+  if (!x) return false;
+  x.drawImage(c as CanvasImageSource, 0, 0, 16, 16);
+  const d = x.getImageData(0, 0, 16, 16).data;
+  for (let i = 3; i < d.length; i += 4) if (d[i] > 0) return false;
+  return true;
+}
+
 export class SceneRenderer {
   private back: Layer | null = null;
   private front: Layer | null = null;
@@ -107,7 +120,9 @@ export class SceneRenderer {
       this.back = back;
       this.front = front;
       this.paintAll();
-      return;
+      // A browser under memory pressure can hand out a canvas that silently stays blank
+      // (half the room missing). If a layer came out empty, retry smaller.
+      if (!isBlank(back.canvas) && !isBlank(front.canvas)) return;
     }
   }
 
