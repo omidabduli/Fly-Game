@@ -4,6 +4,8 @@ import { defineConfig } from 'vitest/config';
 // (https://<user>.github.io/<repo>/) or a custom domain.
 // Set VITE_BASE to override it (e.g. VITE_BASE=/fly-escape-lab/).
 export default defineConfig({
+  // changes on every build, so browsers re-download sprites that keep the same file name
+  define: { __BUILD_ID__: JSON.stringify(Date.now().toString(36)) },
   base: process.env.VITE_BASE ?? './',
   build: {
     target: 'es2020',

@@ -5,6 +5,8 @@ import type { PersonState } from '../game/People';
  * are optional and picked up automatically when the file exists
  * (public/characters/<name>/<name>_<pose>.webp).
  */
+declare const __BUILD_ID__: string | undefined;
+
 export const POSES = [
   'neutral',
   'talking',
@@ -84,7 +86,7 @@ export class SpriteCharacter {
       if ((STARTERS as readonly string[]).includes(pose)) this.starters++;
     };
     img.onerror = () => this.images.delete(pose); // an optional pose that doesn't exist (yet)
-    img.src = `${this.baseUrl}characters/${this.name}/${this.name}_${pose}.webp`;
+    img.src = `${this.baseUrl}characters/${this.name}/${this.name}_${pose}.webp?v=${typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev'}`;
     this.images.set(pose, img);
   }
 
